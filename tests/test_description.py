@@ -1,7 +1,7 @@
-"""Tests for src/description.py — auto-derivation of migration description."""
+"""Tests for src/description.py — auto-derivation of migration description and branch name."""
 
 import pytest
-from src.description import build_description, _MONTH_ABBR
+from src.description import build_description, build_branch_name, _MONTH_ABBR
 
 
 class TestBuildDescription:
@@ -51,3 +51,43 @@ class TestBuildDescription:
     def test_unknown_command_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown command"):
             build_description("unknown-type", month=8, year=2026)
+
+
+class TestBuildBranchName:
+    def test_ren_data_uses_full_month_name(self) -> None:
+        assert build_branch_name("ren-data", "ZNRX_67108", month=7) == "feature/ZNRX_67108_renov_julio"
+        assert build_branch_name("ren-data", "ZNRX_67108", month=8) == "feature/ZNRX_67108_renov_agosto"
+        assert build_branch_name("ren-data", "INC23438687", month=5) == "feature/INC23438687_renov_mayo"
+
+    def test_ren_data_all_months_full_names(self) -> None:
+        expected = {
+            1: "enero", 2: "febrero",  3: "marzo",
+            4: "abril", 5: "mayo",     6: "junio",
+            7: "julio", 8: "agosto",   9: "septiembre",
+            10: "octubre", 11: "noviembre", 12: "diciembre",
+        }
+        for month, name in expected.items():
+            branch = build_branch_name("ren-data", "T_001", month=month)
+            assert branch == f"feature/T_001_renov_{name}"
+
+    def test_rules_entity_to_snake(self) -> None:
+        assert build_branch_name("rules", "RITM_2500", entity="VHPlanRules") == "feature/RITM_2500_VH_Plan_Rules"
+        assert build_branch_name("rules", "RITM_2500", entity="VHPlanSetup") == "feature/RITM_2500_VH_Plan_Setup"
+
+    def test_ren_data_ticket_already_sanitized(self) -> None:
+        # ticket should arrive pre-sanitized (hyphens already replaced in main.py)
+        branch = build_branch_name("ren-data", "INC23703493", month=7)
+        assert branch == "feature/INC23703493_renov_julio"
+        assert "-" not in branch
+
+    def test_ren_data_missing_month_raises(self) -> None:
+        with pytest.raises(ValueError, match="month"):
+            build_branch_name("ren-data", "T_001")
+
+    def test_rules_missing_entity_raises(self) -> None:
+        with pytest.raises(ValueError, match="entity"):
+            build_branch_name("rules", "T_001")
+
+    def test_unknown_command_raises(self) -> None:
+        with pytest.raises(ValueError, match="Unknown command"):
+            build_branch_name("infra", "T_001", month=8)

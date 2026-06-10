@@ -33,7 +33,7 @@ from pathlib import Path
 
 from src import generator_ren_data, generator_rules, java_template, placer
 from src.config import load_config
-from src.description import build_description
+from src.description import build_description, build_branch_name
 
 
 def _timestamp() -> str:
@@ -55,6 +55,7 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
     repo_root = Path(args.repo)
     module = "ams-policy"
     ticket_id = args.ticket
+    ticket_safe = _sanitize_ticket(ticket_id)
 
     description = args.description or build_description(
         "ren-data", month=args.month, year=args.year
@@ -73,6 +74,11 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
         java_src = java_template.generate(base_name, module)
         java_out.write_text(java_src, encoding="utf-8")
 
+        if args.commit:
+            branch = build_branch_name("ren-data", ticket_safe, month=args.month)
+            print(f"Creating feature branch: {branch}")
+            placer.create_feature_branch(repo_root, branch)
+
         print(f"Placing files in repo ({module})...")
         xlsx_dest, java_dest = placer.place(xlsx_out, java_out, base_name, module, repo_root)
         print(f"  xlsx → {xlsx_dest.relative_to(repo_root)}")
@@ -83,7 +89,7 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
             placer.git_add_commit(repo_root, [xlsx_dest, java_dest], ticket_id, description)
             print("Done.")
         else:
-            print("Skipping commit (use --commit to auto-commit).")
+            print("Skipping branch + commit (use --commit to auto-commit).")
 
 
 def cmd_rules(args: argparse.Namespace) -> None:
@@ -92,6 +98,7 @@ def cmd_rules(args: argparse.Namespace) -> None:
     module = "ams-rule"
     entity_name = args.entity
     ticket_id = args.ticket
+    ticket_safe = _sanitize_ticket(ticket_id)
     description = entity_name
 
     resources_path = repo_root / placer._MODULE_RESOURCES_PATH[module]
@@ -109,6 +116,11 @@ def cmd_rules(args: argparse.Namespace) -> None:
         java_src = java_template.generate(base_name, module)
         java_out.write_text(java_src, encoding="utf-8")
 
+        if args.commit:
+            branch = build_branch_name("rules", ticket_safe, entity=entity_name)
+            print(f"Creating feature branch: {branch}")
+            placer.create_feature_branch(repo_root, branch)
+
         print(f"Placing files in repo ({module})...")
         xlsx_dest, java_dest = placer.place(xlsx_out, java_out, base_name, module, repo_root)
         print(f"  xlsx → {xlsx_dest.relative_to(repo_root)}")
@@ -119,7 +131,7 @@ def cmd_rules(args: argparse.Namespace) -> None:
             placer.git_add_commit(repo_root, [xlsx_dest, java_dest], ticket_id, description)
             print("Done.")
         else:
-            print("Skipping commit (use --commit to auto-commit).")
+            print("Skipping branch + commit (use --commit to auto-commit).")
 
 
 def cmd_run_payload(args: argparse.Namespace) -> None:
@@ -176,21 +188,23 @@ def main() -> None:
     # ---- ren-data ----
     p_ren = sub.add_parser("ren-data", help="Tipo 1: vencimientos motor (ams-policy)")
     p_ren.add_argument("--input", required=True, help="Raw business Excel file (baseticketMES.xlsx from negocio)")
-    p_ren.add_argument("--ticket", required=True, help="Ticket ID (e.g. INC23999999)")
+    p_ren.add_argument("--ticket", required=True, help="Ticket ID (e.g. ZNRX-67108 or INC23999999)")
     p_ren.add_argument("--description", default=None,
                        help="Migration description suffix (optional — auto-derived from year+month if omitted)")
     p_ren.add_argument("--year", required=True, type=int, help="Renewal year (e.g. 2026)")
     p_ren.add_argument("--month", required=True, type=int, help="Renewal month number (e.g. 8 for agosto)")
     p_ren.add_argument("--repo", required=True, help="Path to ov-arizona-backend-ecuador repo root")
-    p_ren.add_argument("--commit", action="store_true", help="Auto-commit to git")
+    p_ren.add_argument("--commit", action="store_true",
+                       help="Create feature branch from develop, place files, and commit")
 
     # ---- rules ----
     p_rules = sub.add_parser("rules", help="Tipo 2: reglas de tarificación (ams-rule)")
     p_rules.add_argument("--input", required=True, help="Raw business Excel file")
-    p_rules.add_argument("--ticket", required=True, help="Ticket ID (e.g. RITM2500000)")
+    p_rules.add_argument("--ticket", required=True, help="Ticket ID (e.g. ZNRX-67108 or RITM2500000)")
     p_rules.add_argument("--entity", required=True, help="Entity name (e.g. VHPlanRules)")
     p_rules.add_argument("--repo", required=True, help="Path to ov-arizona-backend-ecuador repo root")
-    p_rules.add_argument("--commit", action="store_true", help="Auto-commit to git")
+    p_rules.add_argument("--commit", action="store_true",
+                         help="Create feature branch from develop, place files, and commit")
 
     # ---- run-payload ----
     p_payload = sub.add_parser("run-payload", help="Run from JSON payload (n8n integration)")

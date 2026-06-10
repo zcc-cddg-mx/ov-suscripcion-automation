@@ -42,6 +42,21 @@ def place(
     return xlsx_dest, java_dest
 
 
+def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = "develop") -> None:
+    """Create and checkout *branch_name* from *base_branch* in *repo_root*.
+
+    Fetches the latest *base_branch* from origin before branching so the
+    feature branch is always up-to-date with pre-production.
+    """
+    r = str(repo_root)
+    subprocess.run(["git", "-C", r, "fetch", "origin", base_branch], check=True)
+    subprocess.run(
+        ["git", "-C", r, "checkout", "-b", branch_name, f"origin/{base_branch}"],
+        check=True,
+    )
+    print(f"  branch '{branch_name}' created from origin/{base_branch}")
+
+
 def git_add_commit(repo_root: Path, files: list[Path], ticket_id: str, description: str) -> None:
     """Stage *files* and create a commit in *repo_root*."""
     str_files = [str(f) for f in files]
