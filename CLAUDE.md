@@ -26,7 +26,8 @@ python -m pytest tests/test_generator_rules.py::TestGeneratorRules::test_ratingl
 python main.py ren-data --input requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx --ticket INC99999 --year 2026 --month 8 --repo ../ov-arizona-backend-ecuador
 python main.py rules    --input data/raw.xlsx --ticket RITM9999 --entity VHPlanRules --repo ../ov-arizona-backend-ecuador
 
-# Add --commit to auto-commit generated files to the target repo
+# Add --commit to create feature branch, commit exactly 2 files, and push to origin
+python main.py ren-data --input requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx --ticket ZNRX-67108 --year 2026 --month 8 --repo ../ov-arizona-backend-ecuador --commit
 python main.py rules --input data/raw.xlsx --ticket RITM9999 --entity VHPlanRules --repo ../ov-arizona-backend-ecuador --commit
 
 # Run from JSON payload (n8n integration — repo read from config.json)
@@ -35,13 +36,20 @@ python main.py run-payload --payload payload.json
 
 ## Local configuration
 
-Copy `config.json.example` to `config.json` and set the repo path (file is git-ignored):
+Copy `config.json.example` to `config.json` and fill in your values (file is git-ignored):
 
 ```json
-{ "repo": "../ov-arizona-backend-ecuador" }
+{
+  "repo": "../ov-arizona-backend-ecuador",
+  "azure_pat": "YOUR_PAT_HERE"
+}
 ```
 
-`run-payload` reads this automatically so n8n payloads do not need to include filesystem paths.
+`run-payload` reads `repo` automatically. `azure_pat` will be used by `open_pull_request()` (pending implementation) to open PRs in Azure DevOps after the push.
+
+- Azure org: `ZurichInsurance-EC` — fixed in code
+- Azure project: `Oficina-Virtual-ZEC` — fixed in code
+- PR target branch: `develop` — fixed in code
 
 ## What this tool does
 
@@ -95,6 +103,27 @@ Adding a new module requires updating both `_MODULE_JAVA_PATH` and `_MODULE_RESO
 ## Fixtures
 
 `fixtures/lov_ams_policy.json` and `fixtures/lov_ams_rule.json` are static snapshots of the LOV sheets from the reference Excel files. They must be updated if the LOV content changes in the backend repo. The reference Excel files are kept alongside them for comparison.
+
+## Commit + push flow (`--commit`)
+
+When `--commit` is passed, `main.py` calls three functions in sequence:
+
+1. `placer.create_feature_branch(repo, branch)` — fetches `origin/develop`, creates `feature/{ticket}_{suffix}` from it
+2. `placer.place(...)` — copies `.xlsx` and `.java` to the correct module paths
+3. `placer.git_add_commit_push(repo, [xlsx, java], ticket, description, branch)` — validates the pair, stages, commits `[ticket] description`, pushes branch to `origin`
+
+**Essential invariant (`_validate_migration_pair`):** exactly 2 files per commit — one `.xlsx` + one `.java` with matching stems, and the Java `class` name must match the file stem. Raises `ValueError` before any git operation if violated.
+
+Branch naming:
+- `ren-data` → `feature/{ticket_sanitized}_renov_{month_full}` (e.g. `feature/ZNRX_67108_renov_agosto`)
+- `rules` → `feature/{ticket_sanitized}_{entity_snake}` (e.g. `feature/RITM_2500_VH_Plan_Rules`)
+
+Ticket hyphens are replaced with underscores in file/class names (`ZNRX-67108` → `ZNRX_67108`); original ticket is kept in the commit message for Jira traceability.
+
+## Upcoming: Azure DevOps PR
+
+Next step after push: `open_pull_request()` in `src/placer.py` using the `azure-devops` Python SDK.  
+Requires `pip install azure-devops` in the conda env and `"azure_pat"` in `config.json`.
 
 ## Tests
 

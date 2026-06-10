@@ -93,7 +93,7 @@ java_template.generate(base_name, "ams-policy")
 placer.place(xlsx, java, base_name, module, repo_root)
   └─ Copia ambos archivos a las rutas correctas del repo ov-arizona-backend-ecuador
 
-placer.git_add_commit(...)    ← solo si --commit
+placer.git_add_commit_push(...)    ← solo si --commit (valida par, commit, push a origin)
 ```
 
 ---
@@ -208,7 +208,7 @@ El subcomando `run-payload` recibe un archivo JSON que el Enricher/QA Agent cons
 | Recibir payload JSON estructurado desde n8n | **Implementado** — `run-payload` + `src/config.py` |
 | Derivar `description` automáticamente | **Implementado** — `src/description.py` |
 | Generar archivos Flyway | **Implementado y testeado** |
-| Commit al repo destino (`--commit`) | **Implementado** |
-| Crear branch en Azure Repos | Pendiente |
-| Abrir Pull Request | Pendiente |
+| Crear feature branch desde `origin/develop` + commit + push | **Implementado** — `placer.create_feature_branch` + `git_add_commit_push` |
+| Validar par exacto (1 xlsx + 1 java, mismo nombre, clase coincide) | **Implementado** — `_validate_migration_pair` en `placer.py` |
+| Abrir Pull Request en Azure DevOps | **Pendiente** — SDK `azure-devops` (pip), PAT en `config.json` |
 | Notificar a n8n (PR link) | Pendiente |
