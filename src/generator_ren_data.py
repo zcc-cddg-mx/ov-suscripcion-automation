@@ -29,6 +29,8 @@ _COL_ALIASES: dict[str, str] = {
     "month": "Month",
     "mes": "Month",
     "factor": "Factor",
+    "tasa final": "Factor",
+    "tasa": "Factor",
     "sum insured": "Sum insured",
     "suma asegurada": "Sum insured",
     "suma_asegurada": "Sum insured",

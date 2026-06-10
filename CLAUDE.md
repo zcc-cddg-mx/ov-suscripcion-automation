@@ -42,7 +42,7 @@ Naming convention: `V{YYYY_MM_DD_HH_MM_SS}__{TICKET_ID}_{Description}`
 - **Target module:** `ams-policy`
 - **Input:** Raw business Excel with chassis/year/month/factor columns (Spanish or English names accepted — see `_COL_ALIASES` in `src/generator_ren_data.py`)
 - **Output sheets:** `LOV` (static, 289 rows from `fixtures/lov_ams_policy.json`) + `FixedRenewalData`
-- **Real requirements files** are stored under `requirements/renovaciones/YYYY/` and have columns: `CHASIS`, `TASA FINAL`, `PLACAS`
+- **Real requirements files** are stored under `requirements/renovaciones/YYYY/MES/` and have columns: `CHASIS`, `TASA FINAL`, `PLACAS`. `CHASIS` → `Chassis number`, `TASA FINAL` → `Factor`. These files lack `Year` and `Month` columns — they must be added manually before using as `--input`, or the generator extended to accept year/month as CLI arguments.
 
 ### Tipo 2 — `rules` (reglas de tarificación)
 - **Target module:** `ams-rule`
