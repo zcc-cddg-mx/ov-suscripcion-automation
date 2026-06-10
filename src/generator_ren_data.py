@@ -95,6 +95,9 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
         if _is_no_renovar(rec.get("Factor")):
             rec["Renewal blocked"] = "Yes"
             count_no_renovar += 1
+        elif isinstance(rec.get("Factor"), float):
+            # Normalize precision to 8 decimal places (matches reference migrations)
+            rec["Factor"] = round(rec["Factor"], 8)
 
         # Inject year/month from arguments if not present in the file
         if not has_year:
