@@ -45,11 +45,17 @@ Naming convention: `V{YYYY_MM_DD_HH_MM_SS}__{TICKET_ID}_{Description}`
   - `Year` and `Month` are not in the file — pass via `--year` and `--month`
   - `TASA FINAL = 'No Renovar'` (case-insensitive) is a **business rule** — rows are **included** in output with `Factor='No Renovar'` and `Renewal blocked='Yes'` (~2–18 per month)
   - ~1300–1600 valid rows per file; ~2000+ empty trailing rows are normal
+- **Row validation (all errors accumulated before failing):** `_load_raw` collects every error in the file and raises a single `ValueError` at the end with a bulleted list — operators see all problems in one pass:
+  - Chassis `None`, empty string, or whitespace → `"Row N: Empty chassis number"`
+  - Factor `None` → `"Row N (chassis '...'): Factor is empty"` (distinct from invalid value)
+  - Factor invalid string → `"Row N (chassis '...'): Factor must be numeric or 'No Renovar', got ..."`
+  - Duplicate chassis → `"Row N (chassis '...'): Duplicate chassis — first seen at row M"`
+  - Missing required columns in header → immediate fail before row loop
 - **Factor validation and normalization:**
   - Numeric ≤8 decimal places → written as-is
   - Numeric >8 decimal places → `round(value, 8)` (business files commonly carry 10–18 decimals from calculation artifacts)
   - `'No Renovar'` string → pass-through
-  - Any other non-numeric value → `ValueError` with chassis and row number
+  - Any other non-numeric value → accumulated as error
   - Decimal counting uses `Decimal(str(v)).normalize().as_tuple()` (avoids float binary noise)
 - **Output row order:** numeric factors sorted ascending, `'No Renovar'` rows grouped at end (matches production reference)
 - **Table bounds (Flyway safety):** `ws.append()` sequential writes guarantee `max_row = 1 + N_records`, `max_column = 7`, zero empty rows inside the table — dynamic based on baseTicket row count
