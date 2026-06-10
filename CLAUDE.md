@@ -43,8 +43,16 @@ Naming convention: `V{YYYY_MM_DD_HH_MM_SS}__{TICKET_ID}_{Description}`
 - **Input:** Real files from negocio: `requirements/renovaciones/YYYY/MES/baseticketMES.xlsx`
   - Columns: `CHASIS`, `TASA FINAL`, `PLACAS` (+ empty trailing columns/rows — filtered automatically)
   - `Year` and `Month` are not in the file — pass via `--year` and `--month`
-  - Rows with `TASA FINAL = 'No Renovar'` are excluded automatically (case-insensitive)
+  - `TASA FINAL = 'No Renovar'` (case-insensitive) is a **business rule** — rows are **included** in output with `Factor='No Renovar'` and `Renewal blocked='Yes'` (~2–18 per month)
   - ~1300–1600 valid rows per file; ~2000+ empty trailing rows are normal
+- **Factor validation and normalization:**
+  - Numeric ≤8 decimal places → written as-is
+  - Numeric >8 decimal places → `round(value, 8)` (business files commonly carry 10–18 decimals from calculation artifacts)
+  - `'No Renovar'` string → pass-through
+  - Any other non-numeric value → `ValueError` with chassis and row number
+  - Decimal counting uses `Decimal(str(v)).normalize().as_tuple()` (avoids float binary noise)
+- **Output row order:** numeric factors sorted ascending, `'No Renovar'` rows grouped at end (matches production reference)
+- **Table bounds (Flyway safety):** `ws.append()` sequential writes guarantee `max_row = 1 + N_records`, `max_column = 7`, zero empty rows inside the table — dynamic based on baseTicket row count
 - **Output sheets:** `LOV` (static, 289 rows from `fixtures/lov_ams_policy.json`) + `FixedRenewalData`
 
 ### Tipo 2 — `rules` (reglas de tarificación)
@@ -70,3 +78,20 @@ Adding a new module requires updating both `_MODULE_JAVA_PATH` and `_MODULE_RESO
 ## Tests
 
 Tests in `tests/test_generator_rules.py` resolve `_AMS_RULE_RESOURCES` relative to the project root pointing to `../ov-arizona-backend-ecuador/ams-rule/flyway/src/main/resources/db/migration/`. The target repo must be present at that path for the rules generator tests to pass.
+
+## End-to-end runner (ren-data)
+
+`tests/run_migration_test.py` generates real migration files into `tests/migrations/` and runs 17 checks:
+
+```bash
+# Run with default month (julio)
+python tests/run_migration_test.py
+
+# Run specific month
+python tests/run_migration_test.py --month abril
+python tests/run_migration_test.py --month julio --ticket INC23703493
+```
+
+Available months: `abril`, `mayo`, `junio`, `julio`. Add new months to `_MONTHS` dict in the runner.
+
+The 17 checks cover: sheets order, headers, row count, Year/Month injection, ID=None, No Renovar→blocked=Yes, normal→blocked=No, LOV=289 rows, no empty rows inside table, column count=7, numeric factors sorted ASC, No Renovar at end, plus 4 reference comparisons (row count, chassis set, Factor values, No Renovar count) when a `reference_xlsx` is configured.
