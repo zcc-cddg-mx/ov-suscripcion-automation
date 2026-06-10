@@ -23,7 +23,7 @@ python -m pytest tests/test_generator_ren_data.py -v
 python -m pytest tests/test_generator_rules.py::TestGeneratorRules::test_ratinglist_version_incremented -v
 
 # Run the CLI (dry-run, no commit)
-python main.py ren-data --input data/raw.xlsx --ticket INC99999 --description VH_ren_data_aug --repo ../ov-arizona-backend-ecuador
+python main.py ren-data --input requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx --ticket INC99999 --description VH_ren_data_ago --year 2026 --month 8 --repo ../ov-arizona-backend-ecuador
 python main.py rules    --input data/raw.xlsx --ticket RITM9999 --entity VHPlanRules --repo ../ov-arizona-backend-ecuador
 
 # Add --commit to auto-commit generated files to the target repo
@@ -40,9 +40,12 @@ Naming convention: `V{YYYY_MM_DD_HH_MM_SS}__{TICKET_ID}_{Description}`
 
 ### Tipo 1 — `ren-data` (vencimientos motor)
 - **Target module:** `ams-policy`
-- **Input:** Raw business Excel with chassis/year/month/factor columns (Spanish or English names accepted — see `_COL_ALIASES` in `src/generator_ren_data.py`)
+- **Input:** Real files from negocio: `requirements/renovaciones/YYYY/MES/baseticketMES.xlsx`
+  - Columns: `CHASIS`, `TASA FINAL`, `PLACAS` (+ empty trailing columns/rows — filtered automatically)
+  - `Year` and `Month` are not in the file — pass via `--year` and `--month`
+  - Rows with `TASA FINAL = 'No Renovar'` are excluded automatically (case-insensitive)
+  - ~1300–1600 valid rows per file; ~2000+ empty trailing rows are normal
 - **Output sheets:** `LOV` (static, 289 rows from `fixtures/lov_ams_policy.json`) + `FixedRenewalData`
-- **Real requirements files** are stored under `requirements/renovaciones/YYYY/MES/` and have columns: `CHASIS`, `TASA FINAL`, `PLACAS`. `CHASIS` → `Chassis number`, `TASA FINAL` → `Factor`. These files lack `Year` and `Month` columns — they must be added manually before using as `--input`, or the generator extended to accept year/month as CLI arguments.
 
 ### Tipo 2 — `rules` (reglas de tarificación)
 - **Target module:** `ams-rule`
