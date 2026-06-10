@@ -1,0 +1,1447 @@
+[
+  [
+    "TrueFalse",
+    "TRUE True",
+    "TRUE"
+  ],
+  [
+    "TrueFalse",
+    "FALSE False",
+    "FALSE"
+  ],
+  [
+    "ProductType",
+    "1 Casa Habitación",
+    "1"
+  ],
+  [
+    "ProductType",
+    "2 Edificios",
+    "2"
+  ],
+  [
+    "ProductType",
+    "3 Oficinas y Consultorios",
+    "3"
+  ],
+  [
+    "ProductType",
+    "4 Industrial",
+    "4"
+  ],
+  [
+    "ProductType",
+    "5 Comercial",
+    "5"
+  ],
+  [
+    "ProductType",
+    "6 Colegios y Universidades",
+    "6"
+  ],
+  [
+    "ProductType",
+    "7 Hoteles y Restaurantes",
+    "7"
+  ],
+  [
+    "ProductType",
+    "LIVIANOS PARTICULARES",
+    40
+  ],
+  [
+    "CoverageName",
+    "Cobertura Solo RC",
+    400
+  ],
+  [
+    "CoverageName",
+    "Cobertura Todo Riesgo",
+    401
+  ],
+  [
+    "CoverageName",
+    "Cobertura Solo Daño",
+    402
+  ],
+  [
+    "CoverageName",
+    "Partial damage",
+    403
+  ],
+  [
+    "CoverageName",
+    "Total Damage",
+    404
+  ],
+  [
+    "CoverageName",
+    "Liability",
+    405
+  ],
+  [
+    "CoverageName",
+    "Partial Theft",
+    406
+  ],
+  [
+    "CoverageName",
+    "Total Theft",
+    407
+  ],
+  [
+    "CoverageName",
+    "PACTO ANDINO",
+    408
+  ],
+  [
+    "CoverageName",
+    "AUTO SUSTITUTO",
+    409
+  ],
+  [
+    "CoverageName",
+    "ASISTENCIA ZURICH",
+    410
+  ],
+  [
+    "CoverageName",
+    "PAGO DE PRIMAS",
+    411
+  ],
+  [
+    "CoverageName",
+    "3 Amparo Patrimonial",
+    412
+  ],
+  [
+    "CoverageName",
+    "MUERTE ACCIDENTAL TITULAR",
+    413
+  ],
+  [
+    "CoverageName",
+    "RESPONSABILIDAD CIVIL LUC",
+    414
+  ],
+  [
+    "CoverageName",
+    "MUERTE ACCIDENTAL OCUPANTES",
+    415
+  ],
+  [
+    "CoverageName",
+    "GASTOS DE REMOLQUE",
+    416
+  ],
+  [
+    "CoverageName",
+    "GASTOS MEDICOS",
+    417
+  ],
+  [
+    "CoverageName",
+    "GASTOS DE SEPELIO",
+    418
+  ],
+  [
+    "CoverageName",
+    "EXEQUIAL",
+    419
+  ],
+  [
+    "CoverageName",
+    "5 Amparo Patrimonial",
+    420
+  ],
+  [
+    "CoverageName",
+    "Cobertura deducible",
+    421
+  ],
+  [
+    "CoverageName",
+    "AMPARO DE ACCESORIOS",
+    422
+  ],
+  [
+    "CoverageName",
+    "GASTOS DE AMBULANCIA",
+    423
+  ],
+  [
+    "CoverageName",
+    "Daños a terceros corporales y materiales hasta",
+    425
+  ],
+  [
+    "CoverageName",
+    "Pérdida total por daños",
+    426
+  ],
+  [
+    "CoverageName",
+    "Pérdida total por robo",
+    427
+  ],
+  [
+    "CoverageName",
+    "Asistencia legal en exceso a Asistencia Zurich y Liberación de vehículo detenido",
+    424
+  ],
+  [
+    "CoverageName",
+    "Equipo motociclista",
+    428
+  ],
+  [
+    "CoverageName",
+    "Amparo de accesorios motos",
+    429
+  ],
+  [
+    "CoverageName",
+    "Pacto andino - Motos",
+    430
+  ],
+  [
+    "CoverageName",
+    "Asistencia motos",
+    431
+  ],
+  [
+    "DistributionChannel",
+    "2 COMMERCIAL DIRECT",
+    "2"
+  ],
+  [
+    "DistributionChannel",
+    "6 AON",
+    "6"
+  ],
+  [
+    "DistributionChannel",
+    "7 DIRECT TO CUSTOMER /PERSONAL DIRECT",
+    "7"
+  ],
+  [
+    "DistributionChannel",
+    "8 OTHER BROKERS",
+    "8"
+  ],
+  [
+    "LineOfBusiness",
+    "1 Incendio",
+    "1"
+  ],
+  [
+    "LineOfBusiness",
+    "2 Robo y Asalto",
+    "2"
+  ],
+  [
+    "LineOfBusiness",
+    "3 Equipo Electrónico",
+    "3"
+  ],
+  [
+    "LineOfBusiness",
+    "4 Rotura de Maquinaria",
+    "4"
+  ],
+  [
+    "LineOfBusiness",
+    "5 Fidelidad Privada",
+    "5"
+  ],
+  [
+    "LineOfBusiness",
+    "6 Responsabilidad Civil",
+    "6"
+  ],
+  [
+    "LineOfBusiness",
+    "PROPERTY Property",
+    "PROPERTY"
+  ],
+  [
+    "LineOfBusiness",
+    "7 Accidentes personales",
+    "7"
+  ],
+  [
+    "LineOfBusiness",
+    "8 Dinero y Valores",
+    "8"
+  ],
+  [
+    "LineOfBusiness",
+    "VEHICULOS LIVIANOS MASIVOS",
+    40
+  ],
+  [
+    "LineOfBusiness",
+    "LIABILITY Liability",
+    "LIABILITY"
+  ],
+  [
+    "LineOfBusiness",
+    "HEALTH Health",
+    "HEALTH"
+  ],
+  [
+    "City",
+    "230 Banos",
+    "230"
+  ],
+  [
+    "City",
+    "110 Salinas",
+    "110"
+  ],
+  [
+    "City",
+    "231 Pillaro",
+    "231"
+  ],
+  [
+    "City",
+    "111 Balzar",
+    "111"
+  ],
+  [
+    "City",
+    "232 Quito",
+    "232"
+  ],
+  [
+    "City",
+    "112 Pedro Carbo",
+    "112"
+  ],
+  [
+    "City",
+    "233 Zamora",
+    "233"
+  ],
+  [
+    "City",
+    "113 Cotacachi",
+    "113"
+  ],
+  [
+    "City",
+    "234 Zumba",
+    "234"
+  ],
+  [
+    "City",
+    "114 Pimampiro",
+    "114"
+  ],
+  [
+    "City",
+    "235 Guayzimi",
+    "235"
+  ],
+  [
+    "City",
+    "115 San Miguel De Urcuqui",
+    "115"
+  ],
+  [
+    "City",
+    "236 28  De Mayo",
+    "236"
+  ],
+  [
+    "City",
+    "116 Ibarra",
+    "116"
+  ],
+  [
+    "City",
+    "237 Yantzaza",
+    "237"
+  ],
+  [
+    "City",
+    "117 Otavalo",
+    "117"
+  ],
+  [
+    "City",
+    "238 El Pangui",
+    "238"
+  ],
+  [
+    "City",
+    "118 Antonio Ante",
+    "118"
+  ],
+  [
+    "City",
+    "239 Zumbi",
+    "239"
+  ],
+  [
+    "City",
+    "119 Atuntaqui",
+    "119"
+  ],
+  [
+    "City",
+    "10 El Pan",
+    "10"
+  ],
+  [
+    "City",
+    "11 Sevilla De Oro",
+    "11"
+  ],
+  [
+    "City",
+    "12 Guachapala",
+    "12"
+  ],
+  [
+    "City",
+    "13 Camilo Ponce Enriquez",
+    "13"
+  ],
+  [
+    "City",
+    "14 Cuenca",
+    "14"
+  ],
+  [
+    "City",
+    "15 Chordeleg",
+    "15"
+  ],
+  [
+    "City",
+    "16 Chillanes",
+    "16"
+  ],
+  [
+    "City",
+    "17 San Jose De Chimbo",
+    "17"
+  ],
+  [
+    "City",
+    "18 Caluma",
+    "18"
+  ],
+  [
+    "City",
+    "19 Las Naves",
+    "19"
+  ],
+  [
+    "City",
+    "240 Palanda",
+    "240"
+  ],
+  [
+    "City",
+    "120 Calvas",
+    "120"
+  ],
+  [
+    "City",
+    "241 Paquisha",
+    "241"
+  ],
+  [
+    "City",
+    "121 Catamayo",
+    "121"
+  ],
+  [
+    "City",
+    "242 Zamora Chinchipe",
+    "242"
+  ],
+  [
+    "City",
+    "1 Giron",
+    "1"
+  ],
+  [
+    "City",
+    "122 Chaguarpamba",
+    "122"
+  ],
+  [
+    "City",
+    "243 Puerto Baquerizo Moreno",
+    "243"
+  ],
+  [
+    "City",
+    "2 Gualaceo",
+    "2"
+  ],
+  [
+    "City",
+    "123 Espindola",
+    "123"
+  ],
+  [
+    "City",
+    "244 Puerto Villamil",
+    "244"
+  ],
+  [
+    "City",
+    "3 Nabon",
+    "3"
+  ],
+  [
+    "City",
+    "124 Gonzanama",
+    "124"
+  ],
+  [
+    "City",
+    "245 Puerto Ayora",
+    "245"
+  ],
+  [
+    "City",
+    "4 Paute",
+    "4"
+  ],
+  [
+    "City",
+    "125 Macara",
+    "125"
+  ],
+  [
+    "City",
+    "246 Galapagos",
+    "246"
+  ],
+  [
+    "City",
+    "5 Pucara",
+    "5"
+  ],
+  [
+    "City",
+    "126 Puyango",
+    "126"
+  ],
+  [
+    "City",
+    "247 Lumbaqui",
+    "247"
+  ],
+  [
+    "City",
+    "6 San Fernando",
+    "6"
+  ],
+  [
+    "City",
+    "127 Saraguro",
+    "127"
+  ],
+  [
+    "City",
+    "248 La Bonita",
+    "248"
+  ],
+  [
+    "City",
+    "7 Santa Isabel",
+    "7"
+  ],
+  [
+    "City",
+    "128 Sozoranga",
+    "128"
+  ],
+  [
+    "City",
+    "249 Cascales",
+    "249"
+  ],
+  [
+    "City",
+    "8 Sigsig",
+    "8"
+  ],
+  [
+    "City",
+    "129 Zapotillo",
+    "129"
+  ],
+  [
+    "City",
+    "9 San Felipe De Oҁ",
+    "9"
+  ],
+  [
+    "City",
+    "20 Guaranda",
+    "20"
+  ],
+  [
+    "City",
+    "21 Echeandia",
+    "21"
+  ],
+  [
+    "City",
+    "22 San Miguel",
+    "22"
+  ],
+  [
+    "City",
+    "23 Chilanes",
+    "23"
+  ],
+  [
+    "City",
+    "24 Biblian",
+    "24"
+  ],
+  [
+    "City",
+    "25 Latroncal",
+    "25"
+  ],
+  [
+    "City",
+    "26 Deleg",
+    "26"
+  ],
+  [
+    "City",
+    "27 La Troncal",
+    "27"
+  ],
+  [
+    "City",
+    "28 Suscal",
+    "28"
+  ],
+  [
+    "City",
+    "29 Azogues",
+    "29"
+  ],
+  [
+    "City",
+    "250 Tarapoa",
+    "250"
+  ],
+  [
+    "City",
+    "130 Pindal",
+    "130"
+  ],
+  [
+    "City",
+    "251 Lago Agrio",
+    "251"
+  ],
+  [
+    "City",
+    "131 Quilanga",
+    "131"
+  ],
+  [
+    "City",
+    "132 Olmedo",
+    "132"
+  ],
+  [
+    "City",
+    "253 Shushufindi",
+    "253"
+  ],
+  [
+    "City",
+    "133 Loja",
+    "133"
+  ],
+  [
+    "City",
+    "254 Nueva Loja (Lago Agrio)",
+    "254"
+  ],
+  [
+    "City",
+    "134 Paltas",
+    "134"
+  ],
+  [
+    "City",
+    "255 Nueva Loja",
+    "255"
+  ],
+  [
+    "City",
+    "135 Celica",
+    "135"
+  ],
+  [
+    "City",
+    "256 Putumayo",
+    "256"
+  ],
+  [
+    "City",
+    "136 Baba",
+    "136"
+  ],
+  [
+    "City",
+    "257 Sucumbios",
+    "257"
+  ],
+  [
+    "City",
+    "137 Montalvo",
+    "137"
+  ],
+  [
+    "City",
+    "258 Cuyabeno",
+    "258"
+  ],
+  [
+    "City",
+    "138 Puebloviejo",
+    "138"
+  ],
+  [
+    "City",
+    "259 Nuevo Rocafuerte",
+    "259"
+  ],
+  [
+    "City",
+    "139 Urdaneta",
+    "139"
+  ],
+  [
+    "City",
+    "30 Caҁr",
+    "30"
+  ],
+  [
+    "City",
+    "31 Gonzalo Pizarro",
+    "31"
+  ],
+  [
+    "City",
+    "32 Espejo",
+    "32"
+  ],
+  [
+    "City",
+    "33 Mira",
+    "33"
+  ],
+  [
+    "City",
+    "34 Montufar",
+    "34"
+  ],
+  [
+    "City",
+    "35 San Pedro De Huaca",
+    "35"
+  ],
+  [
+    "City",
+    "36 Tulcan",
+    "36"
+  ],
+  [
+    "City",
+    "37 Bolivar",
+    "37"
+  ],
+  [
+    "City",
+    "38 La Mana",
+    "38"
+  ],
+  [
+    "City",
+    "39 Pangua",
+    "39"
+  ],
+  [
+    "City",
+    "260 Joya De Los Sachas",
+    "260"
+  ],
+  [
+    "City",
+    "140 Vinces",
+    "140"
+  ],
+  [
+    "City",
+    "261 Loreto",
+    "261"
+  ],
+  [
+    "City",
+    "141 Palenque",
+    "141"
+  ],
+  [
+    "City",
+    "262 El Coca",
+    "262"
+  ],
+  [
+    "City",
+    "142 Buena Fe",
+    "142"
+  ],
+  [
+    "City",
+    "263 Orellana",
+    "263"
+  ],
+  [
+    "City",
+    "143 Valencia",
+    "143"
+  ],
+  [
+    "City",
+    "264 Francisco De Orellana",
+    "264"
+  ],
+  [
+    "City",
+    "144 Mocache",
+    "144"
+  ],
+  [
+    "City",
+    "265 Nueva Loja",
+    "265"
+  ],
+  [
+    "City",
+    "145 Quevedo",
+    "145"
+  ],
+  [
+    "City",
+    "266 Santo Domingo",
+    "266"
+  ],
+  [
+    "City",
+    "146 Babahoyo",
+    "146"
+  ],
+  [
+    "City",
+    "147 Jipijapa",
+    "147"
+  ],
+  [
+    "City",
+    "148 Ventanas",
+    "148"
+  ],
+  [
+    "City",
+    "149 Ricaurte",
+    "149"
+  ],
+  [
+    "City",
+    "40 Saquisili",
+    "40"
+  ],
+  [
+    "City",
+    "41 Sigchos",
+    "41"
+  ],
+  [
+    "City",
+    "42 Cotopaxi",
+    "42"
+  ],
+  [
+    "City",
+    "43 Salcedo",
+    "43"
+  ],
+  [
+    "City",
+    "44 Latacunga",
+    "44"
+  ],
+  [
+    "City",
+    "45 Pujili",
+    "45"
+  ],
+  [
+    "City",
+    "46 Colta",
+    "46"
+  ],
+  [
+    "City",
+    "47 Guano",
+    "47"
+  ],
+  [
+    "City",
+    "48 Penipe",
+    "48"
+  ],
+  [
+    "City",
+    "49 Riobamba",
+    "49"
+  ],
+  [
+    "City",
+    "50 Cumanda",
+    "50"
+  ],
+  [
+    "City",
+    "51 Alausi",
+    "51"
+  ],
+  [
+    "City",
+    "52 Pallatanga",
+    "52"
+  ],
+  [
+    "City",
+    "53 Guamote",
+    "53"
+  ],
+  [
+    "City",
+    "54 Chunchi",
+    "54"
+  ],
+  [
+    "City",
+    "55 Chambo",
+    "55"
+  ],
+  [
+    "City",
+    "56 Arenillas",
+    "56"
+  ],
+  [
+    "City",
+    "57 Atahualpa",
+    "57"
+  ],
+  [
+    "City",
+    "58 Balsas",
+    "58"
+  ],
+  [
+    "City",
+    "59 Chilla",
+    "59"
+  ],
+  [
+    "City",
+    "60 Marcabeli",
+    "60"
+  ],
+  [
+    "City",
+    "61 Piҁs",
+    "61"
+  ],
+  [
+    "City",
+    "62 Portovelo",
+    "62"
+  ],
+  [
+    "City",
+    "63 Zaruma",
+    "63"
+  ],
+  [
+    "City",
+    "64 Las Lajas",
+    "64"
+  ],
+  [
+    "City",
+    "65 Machala",
+    "65"
+  ],
+  [
+    "City",
+    "66 Huaquillas",
+    "66"
+  ],
+  [
+    "City",
+    "67 Pasaje",
+    "67"
+  ],
+  [
+    "City",
+    "68 El Guabo",
+    "68"
+  ],
+  [
+    "City",
+    "69 Santa Rosa",
+    "69"
+  ],
+  [
+    "City",
+    "176 Macas",
+    "176"
+  ],
+  [
+    "City",
+    "177 Gualaquiza",
+    "177"
+  ],
+  [
+    "City",
+    "178 Limon Indanza",
+    "178"
+  ],
+  [
+    "City",
+    "179 Palora",
+    "179"
+  ],
+  [
+    "City",
+    "180 Santiago",
+    "180"
+  ],
+  [
+    "City",
+    "181 Sucua",
+    "181"
+  ],
+  [
+    "City",
+    "182 Huamboya",
+    "182"
+  ],
+  [
+    "City",
+    "183 San Juan Bosco",
+    "183"
+  ],
+  [
+    "City",
+    "184 Taisha ",
+    "184"
+  ],
+  [
+    "City",
+    "185 Logroҏ",
+    "185"
+  ],
+  [
+    "City",
+    "186 San Pablo Vi",
+    "186"
+  ],
+  [
+    "City",
+    "187 Tiwintza",
+    "187"
+  ],
+  [
+    "City",
+    "188 Morona Santiago",
+    "188"
+  ],
+  [
+    "City",
+    "189 Aguarico",
+    "189"
+  ],
+  [
+    "City",
+    "80 Alfredo Baquerizo Moreno",
+    "80"
+  ],
+  [
+    "City",
+    "81 Balao",
+    "81"
+  ],
+  [
+    "City",
+    "82 Colimes",
+    "82"
+  ],
+  [
+    "City",
+    "83 Daule",
+    "83"
+  ],
+  [
+    "City",
+    "84 Empalme",
+    "84"
+  ],
+  [
+    "City",
+    "85 Palestina",
+    "85"
+  ],
+  [
+    "City",
+    "86 Samborondon",
+    "86"
+  ],
+  [
+    "City",
+    "87 Santa Lucia",
+    "87"
+  ],
+  [
+    "City",
+    "88 Urbina Jado",
+    "88"
+  ],
+  [
+    "City",
+    "89 San Jacinto De Yaguachi",
+    "89"
+  ],
+  [
+    "City",
+    "190 Carlos Julio Arosemena Tola",
+    "190"
+  ],
+  [
+    "City",
+    "191 El Chaco",
+    "191"
+  ],
+  [
+    "City",
+    "192 Joya De Los Sachas",
+    "192"
+  ],
+  [
+    "City",
+    "193 Quijos",
+    "193"
+  ],
+  [
+    "City",
+    "194 Loreto",
+    "194"
+  ],
+  [
+    "City",
+    "195 Tena",
+    "195"
+  ],
+  [
+    "City",
+    "196 Francisco De Orellana",
+    "196"
+  ],
+  [
+    "City",
+    "197 Archidona",
+    "197"
+  ],
+  [
+    "City",
+    "198 Papallacta",
+    "198"
+  ],
+  [
+    "City",
+    "199 Santa Clara",
+    "199"
+  ],
+  [
+    "City",
+    "90 Simon Bolivar",
+    "90"
+  ],
+  [
+    "City",
+    "91 Crnel. Marcelino Maridueҁ",
+    "91"
+  ],
+  [
+    "City",
+    "92 Lomas De Sargentillo",
+    "92"
+  ],
+  [
+    "City",
+    "93 Nobol",
+    "93"
+  ],
+  [
+    "City",
+    "94 Gral. Antonio Elizalde",
+    "94"
+  ],
+  [
+    "City",
+    "95 Isidro Ayora",
+    "95"
+  ],
+  [
+    "City",
+    "96 Guayaquil",
+    "96"
+  ],
+  [
+    "City",
+    "97 Milagro",
+    "97"
+  ],
+  [
+    "City",
+    "98 Duran",
+    "98"
+  ],
+  [
+    "City",
+    "99 El Triunfo",
+    "99"
+  ],
+  [
+    "City",
+    "200 Arajuno",
+    "200"
+  ],
+  [
+    "City",
+    "201 Puyo",
+    "201"
+  ],
+  [
+    "City",
+    "202 Mera",
+    "202"
+  ],
+  [
+    "City",
+    "203 Puerto Quito",
+    "203"
+  ],
+  [
+    "City",
+    "204 Quito",
+    "204"
+  ],
+  [
+    "City",
+    "205 Santo Domingo",
+    "205"
+  ],
+  [
+    "City",
+    "206 Cumbaya",
+    "206"
+  ],
+  [
+    "City",
+    "207 Cayambe",
+    "207"
+  ],
+  [
+    "City",
+    "208 Tumbaco",
+    "208"
+  ],
+  [
+    "City",
+    "209 Tabacundo",
+    "209"
+  ],
+  [
+    "City",
+    "210 La Concordia",
+    "210"
+  ],
+  [
+    "City",
+    "211 Carapungo",
+    "211"
+  ],
+  [
+    "City",
+    "212 Canton Mejia / Machachi",
+    "212"
+  ],
+  [
+    "City",
+    "213 Sangolqui",
+    "213"
+  ],
+  [
+    "City",
+    "214 Machachi",
+    "214"
+  ],
+  [
+    "City",
+    "215 Ruminahui",
+    "215"
+  ],
+  [
+    "City",
+    "216 Pedro Vicente Maldonado",
+    "216"
+  ],
+  [
+    "City",
+    "217 Pomasqui",
+    "217"
+  ],
+  [
+    "City",
+    "218 Puembo",
+    "218"
+  ],
+  [
+    "City",
+    "219 San Miguel De Los Bancos",
+    "219"
+  ],
+  [
+    "City",
+    "220 Pedro Moncayo",
+    "220"
+  ],
+  [
+    "City",
+    "100 General Elizalde",
+    "100"
+  ],
+  [
+    "City",
+    "221 Baҏs De Agua Santa",
+    "221"
+  ],
+  [
+    "City",
+    "101 Naranjito",
+    "101"
+  ],
+  [
+    "City",
+    "222 Cevallos",
+    "222"
+  ],
+  [
+    "City",
+    "102 La Libertad",
+    "102"
+  ],
+  [
+    "City",
+    "223 Mocha",
+    "223"
+  ],
+  [
+    "City",
+    "103 Santa Elena",
+    "103"
+  ],
+  [
+    "City",
+    "224 Patate",
+    "224"
+  ],
+  [
+    "City",
+    "104 Yaguachi",
+    "104"
+  ],
+  [
+    "City",
+    "225 Quero",
+    "225"
+  ],
+  [
+    "City",
+    "105 El Empalme",
+    "105"
+  ],
+  [
+    "City",
+    "226 Tisaleo",
+    "226"
+  ],
+  [
+    "City",
+    "227 Ambato",
+    "227"
+  ],
+  [
+    "City",
+    "106 Quito",
+    "106"
+  ],
+  [
+    "City",
+    "107 Naranjal",
+    "107"
+  ],
+  [
+    "City",
+    "228 Pelileo",
+    "228"
+  ],
+  [
+    "City",
+    "108 Playas",
+    "108"
+  ],
+  [
+    "City",
+    "229 San Pedro De Pelileo",
+    "229"
+  ],
+  [
+    "City",
+    "109 Coronel Mariduena",
+    "109"
+  ],
+  [
+    "YesNo",
+    "No",
+    "NO"
+  ],
+  [
+    "YesNo",
+    "Yes",
+    "YES"
+  ]
+]
