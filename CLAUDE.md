@@ -32,6 +32,8 @@ python main.py rules --input data/raw.xlsx --ticket RITM9999 --entity VHPlanRule
 
 ## What this tool does
 
+This is the **Code Agent** (Step 6) of a larger end-to-end orchestration pipeline: `Jira → n8n → Classifier → Enricher → QA → Code Agent → Azure Repos → Jira`. See `architecture/agent_architecture.md` for the full picture.
+
 Automates Flyway migration requests for OV subscriptions. Each migration requires exactly two files with matching names — one `.xlsx` (data) and one `.java` (empty class that inherits `LoadFromFileMigrationTask`). The tool generates both and places them in the correct paths of the `ov-arizona-backend-ecuador` repo.
 
 Naming convention: `V{YYYY_MM_DD_HH_MM_SS}__{TICKET_ID}_{Description}`
