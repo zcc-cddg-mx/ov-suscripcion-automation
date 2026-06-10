@@ -6,7 +6,8 @@ Transforms a raw business Excel into the Flyway-ready Excel with sheets: LOV, Fi
 Expected input (real files from negocio):
   - Columns: CHASIS, TASA FINAL, PLACAS  (+ possible empty trailing columns)
   - Year and Month are NOT in the file — must be passed as arguments.
-  - Rows with TASA FINAL == 'No Renovar' are excluded from the migration.
+  - Rows with TASA FINAL == 'No Renovar' are a business rule: they are included
+    in the output with Factor='No Renovar' and Renewal blocked='Yes'.
   - The file contains empty trailing rows that are filtered automatically.
 """
 
@@ -60,6 +61,10 @@ def _normalize_header(name: str) -> str:
     return _COL_ALIASES.get(name.strip().lower(), name.strip())
 
 
+def _is_no_renovar(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().lower() == _NO_RENOVAR
+
+
 def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
     wb = openpyxl.load_workbook(path, data_only=True)
     ws = wb.active
@@ -79,17 +84,17 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
         raise ValueError(f"Missing required columns in input: {missing}")
 
     records = []
-    skipped_no_renovar = 0
+    count_no_renovar = 0
     for raw_row in rows[1:]:
         if not any(c is not None for c in raw_row):
             continue  # skip empty trailing rows
 
         rec = dict(zip(headers, raw_row))
 
-        factor = rec.get("Factor")
-        if isinstance(factor, str) and factor.strip().lower() == _NO_RENOVAR:
-            skipped_no_renovar += 1
-            continue
+        # 'No Renovar' is a business rule: include the row with Renewal blocked = Yes
+        if _is_no_renovar(rec.get("Factor")):
+            rec["Renewal blocked"] = "Yes"
+            count_no_renovar += 1
 
         # Inject year/month from arguments if not present in the file
         if not has_year:
@@ -99,8 +104,8 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
 
         records.append(rec)
 
-    if skipped_no_renovar:
-        print(f"  Skipped {skipped_no_renovar} rows with 'No Renovar'")
+    if count_no_renovar:
+        print(f"  {count_no_renovar} rows with 'No Renovar' included (Renewal blocked=Yes)")
 
     return records
 
@@ -134,7 +139,7 @@ def generate(raw_input: Path, output: Path, year: int, month: int) -> None:
     """
     records = _load_raw(raw_input, year, month)
     if not records:
-        raise ValueError("No valid records found after filtering. Check the input file.")
+        raise ValueError("No records found in input file (all rows empty).")
 
     wb = Workbook()
     ws_lov = wb.active
