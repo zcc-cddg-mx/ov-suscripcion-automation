@@ -186,13 +186,31 @@ def _verify_xlsx(xlsx_out: Path, cfg: dict) -> int:
         _fail(f"LOV expected 289 rows, got {len(lov_rows)}")
         failures += 1
 
-    # 9. Compare against reference if available
+    # 9. Sort order: numeric factors ascending, No Renovar at end
+    numeric_factors = [r[5] for r in data_rows if isinstance(r[5], float)]
+    no_renovar_rows = [r for r in data_rows if isinstance(r[5], str)]
+    if numeric_factors == sorted(numeric_factors):
+        _ok(f"Numeric factors sorted ascending ({len(numeric_factors)} rows)")
+    else:
+        _fail("Numeric factors are NOT sorted ascending")
+        failures += 1
+    if no_renovar_rows:
+        last_numeric_idx = max(i for i, r in enumerate(data_rows) if isinstance(r[5], float))
+        first_nr_idx = min(i for i, r in enumerate(data_rows) if isinstance(r[5], str))
+        if first_nr_idx > last_numeric_idx:
+            _ok(f"'No Renovar' rows at end ({len(no_renovar_rows)} rows)")
+        else:
+            _fail("'No Renovar' rows are NOT all at the end")
+            failures += 1
+
+    # 10. Compare against reference if available
     ref_path: Path | None = cfg.get("reference_xlsx")
     if ref_path and ref_path.exists():
         print("\n── Comparing against reference ──")
         failures += _compare_with_reference(ws, data_rows, ref_path)
     elif ref_path:
         _info(f"Reference not found, skipping comparison: {ref_path.name}")
+
 
     return failures
 

@@ -174,6 +174,41 @@ class TestGeneratorRenData:
         ws = wb["FixedRenewalData"]
         assert ws.cell(2, 6).value == 0.02  # Factor col
 
+    def test_numeric_factors_sorted_ascending(self, tmp_path: Path) -> None:
+        raw = tmp_path / "raw.xlsx"
+        _make_raw_input_negocio(raw, [
+            ("C003", 0.05,  "P003"),
+            ("C001", 0.019, "P001"),
+            ("C002", 0.03,  "P002"),
+        ])
+        out = tmp_path / "output.xlsx"
+        generate(raw, out, year=_YEAR, month=_MONTH)
+
+        wb = openpyxl.load_workbook(out, data_only=True)
+        ws = wb["FixedRenewalData"]
+        factors = [ws.cell(r, 6).value for r in range(2, ws.max_row + 1)]
+        numeric = [f for f in factors if isinstance(f, float)]
+        assert numeric == sorted(numeric)
+
+    def test_no_renovar_sorted_to_end(self, tmp_path: Path) -> None:
+        raw = tmp_path / "raw.xlsx"
+        _make_raw_input_negocio(raw, [
+            ("C001", "No Renovar", "P001"),
+            ("C002", 0.02,         "P002"),
+            ("C003", "No Renovar", "P003"),
+            ("C004", 0.019,        "P004"),
+        ])
+        out = tmp_path / "output.xlsx"
+        generate(raw, out, year=_YEAR, month=_MONTH)
+
+        wb = openpyxl.load_workbook(out, data_only=True)
+        ws = wb["FixedRenewalData"]
+        factors = [ws.cell(r, 6).value for r in range(2, ws.max_row + 1)]
+        # numeric first, No Renovar last
+        assert all(isinstance(f, float) for f in factors[:2])
+        assert all(isinstance(f, str)   for f in factors[2:])
+        assert factors[0] < factors[1]  # numeric sorted
+
     def test_invalid_factor_type_raises(self, tmp_path: Path) -> None:
         """A non-numeric, non-'No Renovar' Factor value must raise ValueError."""
         wb = openpyxl.Workbook()

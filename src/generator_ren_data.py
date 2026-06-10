@@ -163,6 +163,12 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
     if count_normalized:
         print(f"  {count_normalized} Factor values normalized to {_MAX_FACTOR_DECIMALS} decimal places")
 
+    # Sort: numeric factors ascending, 'No Renovar' rows at the end
+    records.sort(key=lambda r: (
+        1 if _is_no_renovar(r.get("Factor")) else 0,
+        r.get("Factor") if not _is_no_renovar(r.get("Factor")) else 0,
+    ))
+
     return records
 
 
