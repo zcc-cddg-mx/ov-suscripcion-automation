@@ -63,12 +63,36 @@ _NO_RENOVAR = "no renovar"
 _MAX_FACTOR_DECIMALS = 8
 
 
+class _RowErrors:
+    def __init__(self) -> None:
+        self._messages: list[str] = []
+
+    def add(self, msg: str) -> None:
+        self._messages.append(msg)
+
+    def has_errors(self) -> bool:
+        return bool(self._messages)
+
+    def raise_if_any(self) -> None:
+        if self._messages:
+            detail = "\n".join(f"  • {m}" for m in self._messages)
+            raise ValueError(
+                f"Validation failed: {len(self._messages)} error(s) in input file:\n{detail}"
+            )
+
+
 def _normalize_header(name: str) -> str:
     return _COL_ALIASES.get(name.strip().lower(), name.strip())
 
 
 def _is_no_renovar(value: Any) -> bool:
     return isinstance(value, str) and value.strip().lower() == _NO_RENOVAR
+
+
+def _validate_chassis(value: Any) -> str | None:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return "Empty chassis number"
+    return None
 
 
 def _decimal_places(value: float) -> int:
@@ -104,10 +128,13 @@ def _validate_and_normalize_factor(value: Any, chassis: str, row_num: int) -> An
             return round(value, _MAX_FACTOR_DECIMALS)
         return value
 
-    raise ValueError(
-        f"Row {row_num} (chassis {chassis!r}): Factor must be numeric or 'No Renovar', "
-        f"got {value!r} ({type(value).__name__})"
-    )
+    if value is None:
+        msg = "Factor is empty"
+    elif isinstance(value, str) and not value.strip():
+        msg = "Factor is empty (whitespace)"
+    else:
+        msg = f"Factor must be numeric or 'No Renovar', got {value!r} ({type(value).__name__})"
+    raise ValueError(f"Row {row_num} (chassis {chassis!r}): {msg}")
 
 
 def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
@@ -128,7 +155,8 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
     if missing:
         raise ValueError(f"Missing required columns in input: {missing}")
 
-    records = []
+    errors = _RowErrors()
+    record_with_rows: list[tuple[dict[str, Any], int]] = []
     count_no_renovar = 0
     count_normalized = 0
 
@@ -137,10 +165,19 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
             continue  # skip empty trailing rows
 
         rec = dict(zip(headers, raw_row))
-        chassis = rec.get("Chassis number", "")
+        chassis = rec.get("Chassis number")
         raw_factor = rec.get("Factor")
 
-        normalized = _validate_and_normalize_factor(raw_factor, chassis, row_num)
+        chassis_err = _validate_chassis(chassis)
+        if chassis_err:
+            errors.add(f"Row {row_num}: {chassis_err}")
+            continue
+
+        try:
+            normalized = _validate_and_normalize_factor(raw_factor, chassis, row_num)
+        except ValueError as exc:
+            errors.add(str(exc))
+            continue
 
         if _is_no_renovar(normalized):
             rec["Factor"] = normalized
@@ -156,7 +193,22 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
         if not has_month:
             rec["Month"] = month
 
-        records.append(rec)
+        record_with_rows.append((rec, row_num))
+
+    # Detect duplicate chassis numbers
+    seen: dict[str, int] = {}
+    for rec, row_num in record_with_rows:
+        ch = str(rec.get("Chassis number", ""))
+        if ch in seen:
+            errors.add(
+                f"Row {row_num} (chassis {ch!r}): Duplicate chassis — first seen at row {seen[ch]}"
+            )
+        else:
+            seen[ch] = row_num
+
+    errors.raise_if_any()
+
+    records = [rec for rec, _ in record_with_rows]
 
     if count_no_renovar:
         print(f"  {count_no_renovar} rows with 'No Renovar' included (Renewal blocked=Yes)")
@@ -201,7 +253,9 @@ def generate(raw_input: Path, output: Path, year: int, month: int) -> None:
     """
     records = _load_raw(raw_input, year, month)
     if not records:
-        raise ValueError("No records found in input file (all rows empty).")
+        raise ValueError(
+            "No valid records found in input file — all rows were empty or failed validation."
+        )
 
     wb = Workbook()
     ws_lov = wb.active

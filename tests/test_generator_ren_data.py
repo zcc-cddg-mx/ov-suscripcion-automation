@@ -250,6 +250,103 @@ class TestGeneratorRenData:
                 f"Factor {r[5]} has more than {_MAX_FACTOR_DECIMALS} decimals"
 
 
+class TestRowValidation:
+    def test_empty_chassis_none_raises(self, tmp_path: Path) -> None:
+        """Fila con Chassis=None debe fallar con row number en el mensaje."""
+        raw = tmp_path / "raw.xlsx"
+        _make_raw_input_negocio(raw, [
+            ("C001", 0.02, "P001"),
+            (None,  0.015, "P002"),
+            ("C003", 0.03, "P003"),
+        ])
+        out = tmp_path / "output.xlsx"
+        with pytest.raises(ValueError) as exc:
+            generate(raw, out, year=_YEAR, month=_MONTH)
+        error_text = str(exc.value)
+        assert "Row 3" in error_text
+        assert "Empty chassis" in error_text
+
+    def test_empty_chassis_empty_string_raises(self, tmp_path: Path) -> None:
+        """Fila con Chassis='' debe fallar con row number en el mensaje."""
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["CHASIS", "TASA FINAL", "PLACAS"])
+        ws.append(["C001", 0.02, "P001"])
+        ws.append(["",    0.015, "P002"])
+        ws.append(["C003", 0.03, "P003"])
+        raw = tmp_path / "raw.xlsx"
+        wb.save(raw)
+        out = tmp_path / "output.xlsx"
+        with pytest.raises(ValueError) as exc:
+            generate(raw, out, year=_YEAR, month=_MONTH)
+        error_text = str(exc.value)
+        assert "Row 3" in error_text
+        assert "Empty chassis" in error_text
+
+    def test_empty_factor_message_says_empty(self, tmp_path: Path) -> None:
+        """Factor=None debe indicar 'empty' en el mensaje, no solo 'invalid'."""
+        raw = tmp_path / "raw.xlsx"
+        _make_raw_input_negocio(raw, [
+            ("C001", 0.02, "P001"),
+            ("C002", None, "P002"),
+        ])
+        out = tmp_path / "output.xlsx"
+        with pytest.raises(ValueError) as exc:
+            generate(raw, out, year=_YEAR, month=_MONTH)
+        error_text = str(exc.value).lower()
+        assert "row 3" in error_text
+        assert "empty" in error_text
+
+    def test_duplicate_chassis_raises(self, tmp_path: Path) -> None:
+        """Dos filas con mismo chassis deben reportar ambos row numbers."""
+        raw = tmp_path / "raw.xlsx"
+        _make_raw_input_negocio(raw, [
+            ("C001", 0.02,  "P001"),
+            ("C002", 0.015, "P002"),
+            ("C001", 0.03,  "P003"),
+        ])
+        out = tmp_path / "output.xlsx"
+        with pytest.raises(ValueError) as exc:
+            generate(raw, out, year=_YEAR, month=_MONTH)
+        error_text = str(exc.value)
+        assert "Duplicate" in error_text
+        assert "'C001'" in error_text
+        assert "Row 4" in error_text
+        assert "row 2" in error_text.lower()
+
+    def test_multiple_errors_all_reported(self, tmp_path: Path) -> None:
+        """Chassis vacío + Factor inválido + duplicado → todos en un único ValueError."""
+        raw = tmp_path / "raw.xlsx"
+        _make_raw_input_negocio(raw, [
+            ("C001", 0.02,      "P001"),  # válido
+            (None,   0.015,     "P002"),  # chassis vacío
+            ("C003", "INVALID", "P003"),  # factor inválido
+            ("C001", 0.03,      "P004"),  # duplicado
+        ])
+        out = tmp_path / "output.xlsx"
+        with pytest.raises(ValueError) as exc:
+            generate(raw, out, year=_YEAR, month=_MONTH)
+        error_text = str(exc.value)
+        assert "3 error(s)" in error_text
+        assert "Row 3" in error_text   # chassis vacío
+        assert "Row 4" in error_text   # factor inválido
+        assert "Row 5" in error_text   # duplicado
+
+    def test_valid_file_generates_without_errors(self, tmp_path: Path) -> None:
+        """Archivo limpio de 3 filas no debe levantar ningún error."""
+        raw = tmp_path / "raw.xlsx"
+        _make_raw_input_negocio(raw, [
+            ("C001", 0.02,  "P001"),
+            ("C002", 0.015, "P002"),
+            ("C003", 0.03,  "P003"),
+        ])
+        out = tmp_path / "output.xlsx"
+        generate(raw, out, year=_YEAR, month=_MONTH)
+        wb = openpyxl.load_workbook(out, data_only=True)
+        ws = wb["FixedRenewalData"]
+        assert ws.max_row == 4  # 1 header + 3 data rows
+
+
 class TestFactorValidation:
     def test_valid_float_under_8_decimals_unchanged(self) -> None:
         assert _validate_and_normalize_factor(0.019, "C001", 2) == 0.019
@@ -279,7 +376,7 @@ class TestFactorValidation:
             _validate_and_normalize_factor("INVALIDO", "C001", 2)
 
     def test_none_raises(self) -> None:
-        with pytest.raises(ValueError, match="Factor must be numeric or 'No Renovar'"):
+        with pytest.raises(ValueError, match="empty|Factor"):
             _validate_and_normalize_factor(None, "C001", 2)
 
     def test_error_message_includes_chassis_and_row(self) -> None:
