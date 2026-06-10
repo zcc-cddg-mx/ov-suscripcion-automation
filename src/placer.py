@@ -48,7 +48,7 @@ def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = 
     Fetches the latest *base_branch* from origin before branching so the
     feature branch is always up-to-date with pre-production.
     """
-    r = str(repo_root)
+    r = str(Path(repo_root).resolve())
     subprocess.run(["git", "-C", r, "fetch", "origin", base_branch], check=True)
     subprocess.run(
         ["git", "-C", r, "checkout", "-b", branch_name, f"origin/{base_branch}"],
@@ -59,7 +59,8 @@ def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = 
 
 def git_add_commit(repo_root: Path, files: list[Path], ticket_id: str, description: str) -> None:
     """Stage *files* and create a commit in *repo_root*."""
-    str_files = [str(f) for f in files]
-    subprocess.run(["git", "-C", str(repo_root), "add"] + str_files, check=True)
+    abs_root = Path(repo_root).resolve()
+    rel_files = [str(Path(f).resolve().relative_to(abs_root)) for f in files]
+    subprocess.run(["git", "-C", str(abs_root), "add"] + rel_files, check=True)
     msg = f"[{ticket_id}] {description}"
-    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", msg], check=True)
+    subprocess.run(["git", "-C", str(abs_root), "commit", "-m", msg], check=True)
