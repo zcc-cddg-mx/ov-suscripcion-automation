@@ -5,7 +5,7 @@ from pathlib import Path
 import openpyxl
 import pytest
 
-from src.generator_ren_data import generate
+from src.generator_ren_data import generate, _validate_and_normalize_factor, _decimal_places, _MAX_FACTOR_DECIMALS
 
 _YEAR = 2026
 _MONTH = 8
@@ -174,6 +174,18 @@ class TestGeneratorRenData:
         ws = wb["FixedRenewalData"]
         assert ws.cell(2, 6).value == 0.02  # Factor col
 
+    def test_invalid_factor_type_raises(self, tmp_path: Path) -> None:
+        """A non-numeric, non-'No Renovar' Factor value must raise ValueError."""
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["CHASIS", "TASA FINAL", "PLACAS"])
+        ws.append(["C001", "INVALIDO", "P001"])
+        raw = tmp_path / "bad_factor.xlsx"
+        wb.save(raw)
+        out = tmp_path / "output.xlsx"
+        with pytest.raises(ValueError, match="Factor must be numeric or 'No Renovar'"):
+            generate(raw, out, year=_YEAR, month=_MONTH)
+
     def test_real_requirements_file_julio(self, tmp_path: Path) -> None:
         """Smoke test against real julio file: 1589 rows total, 14 No Renovar included."""
         real_file = Path(__file__).parent.parent / "requirements/renovaciones/2026/julio/baseticketJulio2026.xlsx"
@@ -195,3 +207,52 @@ class TestGeneratorRenData:
         assert len(blocked) == 14
         for r in blocked:
             assert isinstance(r[5], str) and r[5].lower() == "no renovar"
+
+        # All numeric factors must have at most 8 decimal places
+        numeric_rows = [r for r in rows if isinstance(r[5], float)]
+        for r in numeric_rows:
+            assert _decimal_places(r[5]) <= _MAX_FACTOR_DECIMALS, \
+                f"Factor {r[5]} has more than {_MAX_FACTOR_DECIMALS} decimals"
+
+
+class TestFactorValidation:
+    def test_valid_float_under_8_decimals_unchanged(self) -> None:
+        assert _validate_and_normalize_factor(0.019, "C001", 2) == 0.019
+
+    def test_valid_float_exactly_8_decimals_unchanged(self) -> None:
+        assert _validate_and_normalize_factor(0.01963615, "C001", 2) == 0.01963615
+
+    def test_float_over_8_decimals_is_rounded(self) -> None:
+        result = _validate_and_normalize_factor(0.0396510705789056, "C001", 2)
+        assert result == round(0.0396510705789056, 8)
+        assert _decimal_places(result) <= _MAX_FACTOR_DECIMALS
+
+    def test_int_factor_converted_to_float(self) -> None:
+        result = _validate_and_normalize_factor(1, "C001", 2)
+        assert result == 1.0
+        assert isinstance(result, float)
+
+    def test_no_renovar_passthrough(self) -> None:
+        assert _validate_and_normalize_factor("No Renovar", "C001", 2) == "No Renovar"
+
+    def test_no_renovar_case_insensitive(self) -> None:
+        assert _validate_and_normalize_factor("NO RENOVAR", "C001", 2) == "NO RENOVAR"
+        assert _validate_and_normalize_factor("no renovar", "C001", 2) == "no renovar"
+
+    def test_arbitrary_string_raises(self) -> None:
+        with pytest.raises(ValueError, match="Factor must be numeric or 'No Renovar'"):
+            _validate_and_normalize_factor("INVALIDO", "C001", 2)
+
+    def test_none_raises(self) -> None:
+        with pytest.raises(ValueError, match="Factor must be numeric or 'No Renovar'"):
+            _validate_and_normalize_factor(None, "C001", 2)
+
+    def test_error_message_includes_chassis_and_row(self) -> None:
+        with pytest.raises(ValueError, match="chassis 'CHASSIS_X'") as exc:
+            _validate_and_normalize_factor("MAL", "CHASSIS_X", 42)
+        assert "Row 42" in str(exc.value)
+
+    def test_decimal_places_helper(self) -> None:
+        assert _decimal_places(0.02) == 2
+        assert _decimal_places(0.01963615) == 8
+        assert _decimal_places(0.0396510705789056) > 8

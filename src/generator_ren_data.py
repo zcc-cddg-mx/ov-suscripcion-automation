@@ -6,14 +6,19 @@ Transforms a raw business Excel into the Flyway-ready Excel with sheets: LOV, Fi
 Expected input (real files from negocio):
   - Columns: CHASIS, TASA FINAL, PLACAS  (+ possible empty trailing columns)
   - Year and Month are NOT in the file — must be passed as arguments.
-  - Rows with TASA FINAL == 'No Renovar' are a business rule: they are included
-    in the output with Factor='No Renovar' and Renewal blocked='Yes'.
+  - Factor rules:
+      · Numeric: must have at most 8 decimal places. Values with more are
+        truncated to 8 (this is normal — negocio files often carry 10–18 decimals).
+      · 'No Renovar' (string): business rule — row is included with
+        Factor='No Renovar' and Renewal blocked='Yes'.
+      · Any other non-numeric, non-None value raises ValueError.
   - The file contains empty trailing rows that are filtered automatically.
 """
 
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +60,7 @@ _FIXED_HEADERS = [
 ]
 
 _NO_RENOVAR = "no renovar"
+_MAX_FACTOR_DECIMALS = 8
 
 
 def _normalize_header(name: str) -> str:
@@ -63,6 +69,45 @@ def _normalize_header(name: str) -> str:
 
 def _is_no_renovar(value: Any) -> bool:
     return isinstance(value, str) and value.strip().lower() == _NO_RENOVAR
+
+
+def _decimal_places(value: float) -> int:
+    """Return the number of significant decimal places of *value*.
+
+    Uses Decimal(str(value)) to avoid float binary-representation noise.
+    e.g. 0.01963615 → 8, not 18.
+    """
+    d = Decimal(str(value)).normalize()
+    sign, digits, exponent = d.as_tuple()
+    if exponent >= 0:
+        return 0
+    return -exponent
+
+
+def _validate_and_normalize_factor(value: Any, chassis: str, row_num: int) -> Any:
+    """
+    Validate and normalize the Factor value for a single row.
+
+    - 'No Renovar' (case-insensitive): returned as-is (handled by caller).
+    - Numeric (int/float): truncated to _MAX_FACTOR_DECIMALS decimals if needed.
+    - Anything else: raises ValueError.
+    """
+    if _is_no_renovar(value):
+        return value
+
+    if isinstance(value, int):
+        return float(value)
+
+    if isinstance(value, float):
+        decimals = _decimal_places(value)
+        if decimals > _MAX_FACTOR_DECIMALS:
+            return round(value, _MAX_FACTOR_DECIMALS)
+        return value
+
+    raise ValueError(
+        f"Row {row_num} (chassis {chassis!r}): Factor must be numeric or 'No Renovar', "
+        f"got {value!r} ({type(value).__name__})"
+    )
 
 
 def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
@@ -85,21 +130,27 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
 
     records = []
     count_no_renovar = 0
-    for raw_row in rows[1:]:
+    count_normalized = 0
+
+    for row_num, raw_row in enumerate(rows[1:], start=2):
         if not any(c is not None for c in raw_row):
             continue  # skip empty trailing rows
 
         rec = dict(zip(headers, raw_row))
+        chassis = rec.get("Chassis number", "")
+        raw_factor = rec.get("Factor")
 
-        # 'No Renovar' is a business rule: include the row with Renewal blocked = Yes
-        if _is_no_renovar(rec.get("Factor")):
+        normalized = _validate_and_normalize_factor(raw_factor, chassis, row_num)
+
+        if _is_no_renovar(normalized):
+            rec["Factor"] = normalized
             rec["Renewal blocked"] = "Yes"
             count_no_renovar += 1
-        elif isinstance(rec.get("Factor"), float):
-            # Normalize precision to 8 decimal places (matches reference migrations)
-            rec["Factor"] = round(rec["Factor"], 8)
+        else:
+            if normalized != raw_factor:
+                count_normalized += 1
+            rec["Factor"] = normalized
 
-        # Inject year/month from arguments if not present in the file
         if not has_year:
             rec["Year"] = year
         if not has_month:
@@ -109,6 +160,8 @@ def _load_raw(path: Path, year: int, month: int) -> list[dict[str, Any]]:
 
     if count_no_renovar:
         print(f"  {count_no_renovar} rows with 'No Renovar' included (Renewal blocked=Yes)")
+    if count_normalized:
+        print(f"  {count_normalized} Factor values normalized to {_MAX_FACTOR_DECIMALS} decimal places")
 
     return records
 
