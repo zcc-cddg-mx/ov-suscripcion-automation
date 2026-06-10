@@ -40,9 +40,14 @@ def _timestamp() -> str:
     return datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
 
+def _sanitize_ticket(ticket_id: str) -> str:
+    """Replace hyphens with underscores — Flyway rejects hyphens in class/file names."""
+    return ticket_id.replace("-", "_")
+
+
 def _build_base_name(ticket_id: str, description: str) -> str:
     ts = _timestamp()
-    return f"V{ts}__{ticket_id}_{description}"
+    return f"V{ts}__{_sanitize_ticket(ticket_id)}_{description}"
 
 
 def cmd_ren_data(args: argparse.Namespace) -> None:
