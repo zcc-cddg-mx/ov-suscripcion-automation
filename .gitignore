@@ -3,6 +3,9 @@ tests/migrations/*.xlsx
 tests/migrations/*.java
 data/
 
+# Local agent configuration (contains server-specific paths)
+config.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

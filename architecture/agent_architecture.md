@@ -15,7 +15,7 @@ Jira (webhook)
   → n8n               — actualiza Jira ("En revisión" + link PR)
 ```
 
-**Input esperado (hoy: CLI manual):** ticket ID, tipo de migración, archivo de negocio, año, mes.  
+**Input:** JSON payload estructurado (desde n8n) o CLI manual — ticket ID, tipo de migración, archivo de negocio, año/mes o entity. El campo `description` se auto-deriva; el path al repo viene de `config.json` local.  
 **Output:** dos archivos Flyway (`.xlsx` + `.java`) con nombre `V{YYYY_MM_DD_HH_MM_SS}__{TICKET}_{Description}`, colocados en el repo destino.
 
 ---
@@ -24,10 +24,14 @@ Jira (webhook)
 
 ```
 ov-suscripcion-automation/
-├── main.py                        # CLI entry point (subcomandos: ren-data, rules)
+├── main.py                        # CLI entry point (subcomandos: ren-data, rules, run-payload)
+├── config.json                    # Config local del agente — path al repo destino (en .gitignore)
+├── config.json.example            # Plantilla de configuración (commiteada)
 ├── src/
 │   ├── generator_ren_data.py      # Generador Tipo 1 — vencimientos motor (ams-policy)
 │   ├── generator_rules.py         # Generador Tipo 2 — reglas de tarificación (ams-rule)
+│   ├── config.py                  # Carga config.json local (load_config)
+│   ├── description.py             # Auto-deriva description del nombre de archivo (build_description)
 │   ├── java_template.py           # Template .java por módulo
 │   └── placer.py                  # Copia archivos al repo destino, git commit opcional
 ├── fixtures/
@@ -37,6 +41,8 @@ ov-suscripcion-automation/
 │   ├── test_generator_ren_data.py # 30 tests — estructura, validación, factor, sort
 │   ├── test_generator_rules.py    # Tests generador tipo 2
 │   ├── test_java_template.py      # Tests template Java
+│   ├── test_description.py        # Tests derivación automática de description (9 tests)
+│   ├── test_payload.py            # Tests modo payload y config loading (8 tests)
 │   └── run_migration_test.py      # Runner e2e con archivos reales → tests/migrations/
 ├── requirements/
 │   └── renovaciones/YYYY/MES/     # Archivos de entrada de negocio (baseticketMES.xlsx)
@@ -157,13 +163,52 @@ Cada migración produce exactamente dos archivos con el mismo nombre base:
 
 ---
 
+## Payload JSON (contrato con n8n)
+
+El subcomando `run-payload` recibe un archivo JSON que el Enricher/QA Agent construye a partir del ticket Jira. El `repo` no viaja en el payload — se lee de `config.json` local del servidor.
+
+**Tipo 1 — ren-data:**
+```json
+{
+  "command": "ren-data",
+  "ticket": "ZNRX-67108",
+  "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
+  "year": 2026,
+  "month": 8,
+  "commit": false
+}
+```
+
+**Tipo 2 — rules:**
+```json
+{
+  "command": "rules",
+  "ticket": "ZNRX-67108",
+  "input": "data/raw.xlsx",
+  "entity": "VHPlanRules",
+  "commit": false
+}
+```
+
+**`description` auto-derivada (no va en el payload):**
+- `ren-data` → `VH_ren_data_{mes_abrev}_{year}` (ej. `VH_ren_data_ago_2026`)
+- `rules`    → `{entity}` (ej. `VHPlanRules`)
+
+**`config.json` (fijo en el servidor, en `.gitignore`):**
+```json
+{ "repo": "../ov-arizona-backend-ecuador" }
+```
+
+---
+
 ## Estado de integración con el pipeline
 
 | Paso | Estado |
 |---|---|
-| Recibir payload estructurado desde n8n | Pendiente — hoy se usa CLI manual |
-| Generar archivos Flyway | Implementado y testeado |
-| Commit al repo destino (`--commit`) | Implementado |
+| Recibir payload JSON estructurado desde n8n | **Implementado** — `run-payload` + `src/config.py` |
+| Derivar `description` automáticamente | **Implementado** — `src/description.py` |
+| Generar archivos Flyway | **Implementado y testeado** |
+| Commit al repo destino (`--commit`) | **Implementado** |
 | Crear branch en Azure Repos | Pendiente |
 | Abrir Pull Request | Pendiente |
 | Notificar a n8n (PR link) | Pendiente |

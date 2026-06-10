@@ -22,13 +22,26 @@ python -m pytest tests/test_generator_ren_data.py -v
 # Run a single test
 python -m pytest tests/test_generator_rules.py::TestGeneratorRules::test_ratinglist_version_incremented -v
 
-# Run the CLI (dry-run, no commit)
-python main.py ren-data --input requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx --ticket INC99999 --description VH_ren_data_ago --year 2026 --month 8 --repo ../ov-arizona-backend-ecuador
+# Run the CLI (dry-run, no commit) — --description is optional, auto-derived from year+month
+python main.py ren-data --input requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx --ticket INC99999 --year 2026 --month 8 --repo ../ov-arizona-backend-ecuador
 python main.py rules    --input data/raw.xlsx --ticket RITM9999 --entity VHPlanRules --repo ../ov-arizona-backend-ecuador
 
 # Add --commit to auto-commit generated files to the target repo
 python main.py rules --input data/raw.xlsx --ticket RITM9999 --entity VHPlanRules --repo ../ov-arizona-backend-ecuador --commit
+
+# Run from JSON payload (n8n integration — repo read from config.json)
+python main.py run-payload --payload payload.json
 ```
+
+## Local configuration
+
+Copy `config.json.example` to `config.json` and set the repo path (file is git-ignored):
+
+```json
+{ "repo": "../ov-arizona-backend-ecuador" }
+```
+
+`run-payload` reads this automatically so n8n payloads do not need to include filesystem paths.
 
 ## What this tool does
 
