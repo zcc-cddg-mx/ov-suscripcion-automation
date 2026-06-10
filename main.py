@@ -74,6 +74,7 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
         java_src = java_template.generate(base_name, module)
         java_out.write_text(java_src, encoding="utf-8")
 
+        branch = None
         if args.commit:
             branch = build_branch_name("ren-data", ticket_safe, month=args.month)
             print(f"Creating feature branch: {branch}")
@@ -85,8 +86,10 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
         print(f"  java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
-            print("Committing...")
-            placer.git_add_commit(repo_root, [xlsx_dest, java_dest], ticket_id, description)
+            print("Committing and pushing...")
+            placer.git_add_commit_push(
+                repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
+            )
             print("Done.")
         else:
             print("Skipping branch + commit (use --commit to auto-commit).")
@@ -116,6 +119,7 @@ def cmd_rules(args: argparse.Namespace) -> None:
         java_src = java_template.generate(base_name, module)
         java_out.write_text(java_src, encoding="utf-8")
 
+        branch = None
         if args.commit:
             branch = build_branch_name("rules", ticket_safe, entity=entity_name)
             print(f"Creating feature branch: {branch}")
@@ -127,8 +131,10 @@ def cmd_rules(args: argparse.Namespace) -> None:
         print(f"  java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
-            print("Committing...")
-            placer.git_add_commit(repo_root, [xlsx_dest, java_dest], ticket_id, description)
+            print("Committing and pushing...")
+            placer.git_add_commit_push(
+                repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
+            )
             print("Done.")
         else:
             print("Skipping branch + commit (use --commit to auto-commit).")
