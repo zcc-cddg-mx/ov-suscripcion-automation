@@ -4,9 +4,10 @@ CLI entry point for the OV subscription automation tool.
 Usage examples:
   # Tipo 1 — vencimientos motor
   python main.py ren-data \\
-      --input data/raw_jul.xlsx \\
+      --input requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx \\
       --ticket INC23999999 \\
-      --description VH_ren_data_aug \\
+      --description VH_ren_data_ago \\
+      --year 2026 --month 8 \\
       --repo /path/to/ov-arizona-backend-ecuador \\
       [--commit]
 
@@ -54,7 +55,7 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
         java_out = tmp_path / f"{base_name}.java"
 
         print(f"Generating Excel: {xlsx_out.name}")
-        generator_ren_data.generate(raw_input, xlsx_out)
+        generator_ren_data.generate(raw_input, xlsx_out, year=args.year, month=args.month)
 
         print(f"Generating Java class: {java_out.name}")
         java_src = java_template.generate(base_name, module)
@@ -117,9 +118,11 @@ def main() -> None:
 
     # ---- ren-data ----
     p_ren = sub.add_parser("ren-data", help="Tipo 1: vencimientos motor (ams-policy)")
-    p_ren.add_argument("--input", required=True, help="Raw business Excel file")
+    p_ren.add_argument("--input", required=True, help="Raw business Excel file (baseticketMES.xlsx from negocio)")
     p_ren.add_argument("--ticket", required=True, help="Ticket ID (e.g. INC23999999)")
-    p_ren.add_argument("--description", required=True, help="Migration description (e.g. VH_ren_data_aug)")
+    p_ren.add_argument("--description", required=True, help="Migration description (e.g. VH_ren_data_ago)")
+    p_ren.add_argument("--year", required=True, type=int, help="Renewal year (e.g. 2026)")
+    p_ren.add_argument("--month", required=True, type=int, help="Renewal month number (e.g. 8 for agosto)")
     p_ren.add_argument("--repo", required=True, help="Path to ov-arizona-backend-ecuador repo root")
     p_ren.add_argument("--commit", action="store_true", help="Auto-commit to git")
 
