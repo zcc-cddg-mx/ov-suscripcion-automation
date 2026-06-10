@@ -186,7 +186,27 @@ def _verify_xlsx(xlsx_out: Path, cfg: dict) -> int:
         _fail(f"LOV expected 289 rows, got {len(lov_rows)}")
         failures += 1
 
-    # 9. Sort order: numeric factors ascending, No Renovar at end
+    # 9. Table bounds — no empty rows inside the data block, no extra columns
+    empty_middle = [
+        row[0].row
+        for row in openpyxl.load_workbook(xlsx_out).worksheets[1].iter_rows(
+            min_row=2, max_row=ws.max_row
+        )
+        if all(c.value is None for c in row)
+    ]
+    if not empty_middle:
+        _ok("No empty rows inside FixedRenewalData table")
+    else:
+        _fail(f"Empty rows found inside table at rows: {empty_middle[:5]}")
+        failures += 1
+
+    if ws.max_column == 7:
+        _ok(f"Column count = 7 (A:G — no extra columns)")
+    else:
+        _fail(f"Unexpected column count: {ws.max_column} (expected 7)")
+        failures += 1
+
+    # 10. Sort order: numeric factors ascending, No Renovar at end
     numeric_factors = [r[5] for r in data_rows if isinstance(r[5], float)]
     no_renovar_rows = [r for r in data_rows if isinstance(r[5], str)]
     if numeric_factors == sorted(numeric_factors):
