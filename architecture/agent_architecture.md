@@ -205,15 +205,27 @@ El subcomando `run-payload` recibe un archivo JSON que el Enricher/QA Agent cons
 
 ## Estrategia de ramas
 
+Por cada ejecución con `--commit` el agente produce **2 ramas**:
+
 ```
 feature/{ticket}_{suffix}
+  └── cortada de origin/developer
+  └── 2 archivos (xlsx + java) + commit + push
         │
-        └── PR ──► developer   (integración / QA) ◄── alcance de este agente
-                       │
-                       └── PR ──► main            (producción — proceso manual, fuera del agente)
+        ├──── PR ──► developer  ◄── alcance del agente
+        │
+{base_name}_developer_auxiliar
+  └── cortada limpia de origin/developer
+  └── mismos 2 archivos copiados con 'git show <feature>:<path>'
+      (sin merge — cero conflictos posibles)
+  └── commit + push a origin
+        │
+        └──── PR ──► developer  ◄── rama candidata al PR
+
+developer  ──► PR ──► main  (producción — proceso manual)
 ```
 
-El agente **nunca toca `main` directamente**. La promoción `developer → main` es un paso humano separado (release manager / equipo de release).
+**Por qué `git show` en lugar de merge:** el merge podría traer cambios de `developer` no relacionados con la migración. Con `git show` la rama auxiliar contiene exactamente `developer` + los 2 archivos nuevos — sin sorpresas.
 
 ---
 
@@ -225,7 +237,8 @@ El agente **nunca toca `main` directamente**. La promoción `developer → main`
 | Derivar `description` automáticamente | Agente | **Implementado** — `src/description.py` |
 | Generar archivos Flyway | Agente | **Implementado y testeado** |
 | Crear feature branch desde `origin/developer` + commit + push | Agente | **Implementado** — `placer.create_feature_branch` + `git_add_commit_push` |
+| Crear rama auxiliar `{base_name}_developer_auxiliar` + push | Agente | **Implementado** — `placer.create_auxiliary_branch` (git show, sin merge) |
 | Validar par exacto (1 xlsx + 1 java, mismo nombre, clase coincide) | Agente | **Implementado** — `_validate_migration_pair` en `placer.py` |
-| Abrir PR: `feature/...` → `developer` | Agente | **Pendiente** — SDK `azure-devops` (pip), PAT en `config.json` |
+| Abrir PR: `{base_name}_developer_auxiliar` → `developer` | Agente | **Pendiente** — SDK `azure-devops` (pip), PAT en `config.json` |
 | Notificar a n8n (PR link) | Agente | **Pendiente** |
 | PR `developer` → `main` (producción) | Release manual | Fuera del alcance del agente |

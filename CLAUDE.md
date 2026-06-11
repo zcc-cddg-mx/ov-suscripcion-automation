@@ -125,11 +125,17 @@ Branch naming:
 - `ren-data` → `feature/{ticket_sanitized}_renov_{month_full}` (e.g. `feature/ZNRX_67108_renov_agosto`)
 - `rules` → `feature/{ticket_sanitized}_{entity_snake}` (e.g. `feature/RITM_2500_VH_Plan_Rules`)
 
-Branch strategy:
+Branch strategy — two branches created per `--commit` run:
 ```
-feature/{ticket}_{suffix}  →  PR  →  developer   (integration / QA — this agent's scope)
-developer                  →  PR  →  main         (production — separate manual process)
+feature/{ticket}_{suffix}              ← cut from origin/developer, 2 files, push
+{base_name}_developer_auxiliar         ← cut from origin/developer, same 2 files
+                                          copied via git show (no merge, no conflicts)
+
+Both → PR → developer  (integration/QA — this agent's scope)
+developer → PR → main  (production — separate manual process)
 ```
+The auxiliary branch is the safe PR candidate: starts clean from `developer` and
+receives exactly the 2 migration files extracted with `git show <feature>:<path>`.
 
 Ticket hyphens are replaced with underscores in file/class names (`ZNRX-67108` → `ZNRX_67108`); original ticket is kept in the commit message for Jira traceability.
 
