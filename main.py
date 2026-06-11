@@ -86,11 +86,15 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
         print(f"  java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
-            print("Committing and pushing...")
+            print("Committing and pushing feature branch...")
             placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
-            print("Done.")
+            print("Creating auxiliary branch from developer...")
+            aux_branch = placer.create_auxiliary_branch(
+                repo_root, base_name, branch, [xlsx_dest, java_dest], ticket_id, description
+            )
+            print(f"Done. Feature: {branch} | Aux: {aux_branch}")
         else:
             print("Skipping branch + commit (use --commit to auto-commit).")
 
@@ -131,11 +135,15 @@ def cmd_rules(args: argparse.Namespace) -> None:
         print(f"  java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
-            print("Committing and pushing...")
+            print("Committing and pushing feature branch...")
             placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
-            print("Done.")
+            print("Creating auxiliary branch from developer...")
+            aux_branch = placer.create_auxiliary_branch(
+                repo_root, base_name, branch, [xlsx_dest, java_dest], ticket_id, description
+            )
+            print(f"Done. Feature: {branch} | Aux: {aux_branch}")
         else:
             print("Skipping branch + commit (use --commit to auto-commit).")
 

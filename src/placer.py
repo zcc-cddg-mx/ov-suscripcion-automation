@@ -1,11 +1,15 @@
 """Place generated files into the target repo and optionally commit and push.
 
 Branch strategy:
-  feature/{ticket}_{suffix}  →  PR →  developer  (integration/QA)
-  developer                  →  PR →  main        (production — future, manual process)
+  feature/{ticket}_{suffix}           →  push to origin
+  {base_name}_developer_auxiliar      →  created from origin/developer, receives only
+                                          the 2 migration files from the feature branch
+                                          (xlsx + java), then pushed to origin
+  developer                           →  PR target (integration/QA)
+  main                                →  production, manual process outside this agent
 
-The Code Agent only operates on the developer branch. Promotion to main/production
-is a separate, manually-triggered step outside this agent's scope.
+The auxiliary branch is the safe merge point: it starts clean from developer and
+receives exactly the 2 migration files — no other changes from the feature branch.
 """
 
 from __future__ import annotations
@@ -126,6 +130,66 @@ def git_add_commit_push(
         check=True,
     )
     print(f"  pushed '{branch_name}' to origin")
+
+
+def create_auxiliary_branch(
+    repo_root: Path,
+    base_name: str,
+    feature_branch: str,
+    files: list[Path],
+    ticket_id: str,
+    description: str,
+) -> str:
+    """Create an auxiliary branch from origin/developer containing only the 2 migration files.
+
+    The auxiliary branch name is: {base_name}_developer_auxiliar
+
+    Strategy: instead of merging (which risks conflicts), we create the aux branch
+    clean from developer and use 'git show' to copy the exact file blobs from the
+    feature branch. This guarantees only the 2 new files land in the aux branch —
+    no other changes from the feature branch are included.
+
+    Returns the auxiliary branch name.
+    """
+    aux_branch = f"{base_name}_developer_auxiliar"
+    r = str(Path(repo_root).resolve())
+    abs_root = Path(repo_root).resolve()
+
+    # Create aux branch from latest developer
+    subprocess.run(["git", "-C", r, "fetch", "origin", _PR_TARGET_BRANCH], check=True)
+    subprocess.run(
+        ["git", "-C", r, "checkout", "-b", aux_branch, f"origin/{_PR_TARGET_BRANCH}"],
+        check=True,
+    )
+    print(f"  aux branch '{aux_branch}' created from origin/{_PR_TARGET_BRANCH}")
+
+    # Extract each file blob from the feature branch and write it into the aux branch
+    for f in files:
+        rel = str(Path(f).resolve().relative_to(abs_root))
+        # git show <branch>:<path> — retrieves the exact file content from the feature branch
+        result = subprocess.run(
+            ["git", "-C", r, "show", f"{feature_branch}:{rel}"],
+            check=True,
+            capture_output=True,
+        )
+        dest = abs_root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(result.stdout)
+
+    # Stage and commit the 2 files
+    rel_files = [str(Path(f).resolve().relative_to(abs_root)) for f in files]
+    subprocess.run(["git", "-C", r, "add"] + rel_files, check=True)
+    msg = f"[{ticket_id}] {description}"
+    subprocess.run(["git", "-C", r, "commit", "-m", msg], check=True)
+
+    # Push aux branch to origin
+    subprocess.run(
+        ["git", "-C", r, "push", "--set-upstream", "origin", aux_branch],
+        check=True,
+    )
+    print(f"  pushed aux branch '{aux_branch}' to origin")
+
+    return aux_branch
 
 
 # Keep old name as alias for backward compatibility with tests
