@@ -1,10 +1,36 @@
+# Conda environment for ov-suscripcion-automation
+#
+# Channels:
+#   conda-forge  — community channel, primary source for Python and system libraries
+#                  https://conda.anaconda.org/conda-forge
+#   defaults     — Anaconda official channel (fallback)
+#                  https://repo.anaconda.com/pkgs/main
+#                  https://repo.anaconda.com/pkgs/r
+#
+# Python and system packages (bzip2, openssl, libgcc, etc.) are resolved from
+# conda-forge first, then defaults. Application dependencies come from PyPI via pip.
+#
+# Create:  conda env create -f environment.yml
+# Update:  conda env update -f environment.yml --prune
+# Activate: conda activate ov-suscripcion
+
 name: ov-suscripcion
+
 channels:
   - conda-forge
   - defaults
+
 dependencies:
   - python=3.12
   - pip
+
   - pip:
-      - openpyxl>=3.1
-      - pytest>=8.0
+      # Excel read/write — Flyway migration file generation
+      - openpyxl==3.1.5
+
+      # Testing
+      - pytest==9.0.3
+
+      # Upcoming: Azure DevOps PR integration (uncomment when PAT is available)
+      # - azure-devops
+      # - msrest
