@@ -25,11 +25,23 @@ Jira (webhook)
 El agente recibe un **JSON payload estructurado** desde n8n (construido por los agentes anteriores) y produce:
 
 1. Dos archivos Flyway con nombre canónico (`V{ts}__{TICKET}_{description}.xlsx` + `.java`)
-2. Una rama `feature/...` en `ov-arizona-backend-ecuador` creada desde `origin/develop`
+2. Una rama `feature/...` en `ov-arizona-backend-ecuador` creada desde `origin/developer`
 3. Un commit con exactamente esos 2 archivos
 4. Push de la rama a Azure Repos (`origin`)
 
-Lo que queda pendiente: abrir el Pull Request en Azure DevOps y notificar a n8n con el link del PR.
+Lo que queda pendiente: abrir el Pull Request (`feature/...` → `developer`) y notificar a n8n con el link del PR.
+
+### Estrategia de ramas y alcance del agente
+
+```
+feature/{ticket}_{suffix}
+        │
+        └── PR ──► developer   (integración / QA) ◄── alcance del Code Agent
+                       │
+                       └── PR ──► main            (producción — proceso manual)
+```
+
+El agente **opera exclusivamente sobre `developer`**. La promoción a `main` (producción) es un proceso manual a cargo del equipo de release, fuera del alcance de este agente.
 
 ---
 
@@ -53,7 +65,7 @@ main.py (CLI o run-payload)
   ├── java_template.generate()       ← clase vacía que hereda LoadFromFileMigrationTask
   │
   └── placer.*
-        ├── create_feature_branch()  ← fetch + checkout -b desde origin/develop
+        ├── create_feature_branch()  ← fetch + checkout -b desde origin/developer
         ├── place()                  ← copia xlsx + java a rutas correctas del módulo
         └── git_add_commit_push()    ← valida par exacto → add → commit → push
               └── _validate_migration_pair()  ← 1 xlsx + 1 java, mismo stem, clase coincide
@@ -122,7 +134,7 @@ V{YYYY_MM_DD_HH_MM_SS}__{TICKET_SANITIZADO}_{Description}
 | Recibir JSON payload desde n8n | **Implementado** — subcomando `run-payload` |
 | Derivar `description` automáticamente | **Implementado** — `src/description.py` |
 | Generar archivos Flyway (xlsx + java) | **Implementado y testeado** |
-| Crear feature branch desde `origin/develop` | **Implementado** — `placer.create_feature_branch()` |
+| Crear feature branch desde `origin/developer` + commit + push | **Implementado** — `placer.create_feature_branch()` + `git_add_commit_push()` |
 | Commit + push a Azure Repos | **Implementado** — `placer.git_add_commit_push()` |
 | Abrir Pull Request en Azure DevOps | **Pendiente** |
 | Devolver PR link a n8n | **Pendiente** |
@@ -190,7 +202,7 @@ def open_pull_request(repo_root, branch_name, ticket_id, description, pat):
     git_client = connection.clients.get_git_client()
     pr = {
         "source_ref_name": f"refs/heads/{branch_name}",
-        "target_ref_name": "refs/heads/develop",
+        "target_ref_name": "refs/heads/developer",
         "title": f"[{ticket_id}] {description}",
         "description": f"Migración Flyway generada automáticamente por Code Agent.",
     }

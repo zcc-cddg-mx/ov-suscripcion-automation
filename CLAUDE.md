@@ -49,7 +49,8 @@ Copy `config.json.example` to `config.json` and fill in your values (file is git
 
 - Azure org: `ZurichInsurance-EC` — fixed in code
 - Azure project: `Oficina-Virtual-ZEC` — fixed in code
-- PR target branch: `develop` — fixed in code
+- PR target branch: `developer` — fixed in code (`_PR_TARGET_BRANCH` in `src/placer.py`)
+- Promotion `developer` → `main` (production): separate manual process, outside this agent's scope
 
 ## What this tool does
 
@@ -108,7 +109,7 @@ Adding a new module requires updating both `_MODULE_JAVA_PATH` and `_MODULE_RESO
 
 When `--commit` is passed, `main.py` calls three functions in sequence:
 
-1. `placer.create_feature_branch(repo, branch)` — fetches `origin/develop`, creates `feature/{ticket}_{suffix}` from it
+1. `placer.create_feature_branch(repo, branch)` — fetches `origin/developer`, creates `feature/{ticket}_{suffix}` from it
 2. `placer.place(...)` — copies `.xlsx` and `.java` to the correct module paths
 3. `placer.git_add_commit_push(repo, [xlsx, java], ticket, description, branch)` — validates the pair, stages, commits `[ticket] description`, pushes branch to `origin`
 
@@ -117,6 +118,12 @@ When `--commit` is passed, `main.py` calls three functions in sequence:
 Branch naming:
 - `ren-data` → `feature/{ticket_sanitized}_renov_{month_full}` (e.g. `feature/ZNRX_67108_renov_agosto`)
 - `rules` → `feature/{ticket_sanitized}_{entity_snake}` (e.g. `feature/RITM_2500_VH_Plan_Rules`)
+
+Branch strategy:
+```
+feature/{ticket}_{suffix}  →  PR  →  developer   (integration / QA — this agent's scope)
+developer                  →  PR  →  main         (production — separate manual process)
+```
 
 Ticket hyphens are replaced with underscores in file/class names (`ZNRX-67108` → `ZNRX_67108`); original ticket is kept in the commit message for Jira traceability.
 

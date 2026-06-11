@@ -201,14 +201,29 @@ El subcomando `run-payload` recibe un archivo JSON que el Enricher/QA Agent cons
 
 ---
 
+## Estrategia de ramas
+
+```
+feature/{ticket}_{suffix}
+        │
+        └── PR ──► developer   (integración / QA) ◄── alcance de este agente
+                       │
+                       └── PR ──► main            (producción — proceso manual, fuera del agente)
+```
+
+El agente **nunca toca `main` directamente**. La promoción `developer → main` es un paso humano separado (release manager / equipo de release).
+
+---
+
 ## Estado de integración con el pipeline
 
-| Paso | Estado |
-|---|---|
-| Recibir payload JSON estructurado desde n8n | **Implementado** — `run-payload` + `src/config.py` |
-| Derivar `description` automáticamente | **Implementado** — `src/description.py` |
-| Generar archivos Flyway | **Implementado y testeado** |
-| Crear feature branch desde `origin/develop` + commit + push | **Implementado** — `placer.create_feature_branch` + `git_add_commit_push` |
-| Validar par exacto (1 xlsx + 1 java, mismo nombre, clase coincide) | **Implementado** — `_validate_migration_pair` en `placer.py` |
-| Abrir Pull Request en Azure DevOps | **Pendiente** — SDK `azure-devops` (pip), PAT en `config.json` |
-| Notificar a n8n (PR link) | Pendiente |
+| Paso | Scope | Estado |
+|---|---|---|
+| Recibir payload JSON estructurado desde n8n | Agente | **Implementado** — `run-payload` + `src/config.py` |
+| Derivar `description` automáticamente | Agente | **Implementado** — `src/description.py` |
+| Generar archivos Flyway | Agente | **Implementado y testeado** |
+| Crear feature branch desde `origin/developer` + commit + push | Agente | **Implementado** — `placer.create_feature_branch` + `git_add_commit_push` |
+| Validar par exacto (1 xlsx + 1 java, mismo nombre, clase coincide) | Agente | **Implementado** — `_validate_migration_pair` en `placer.py` |
+| Abrir PR: `feature/...` → `developer` | Agente | **Pendiente** — SDK `azure-devops` (pip), PAT en `config.json` |
+| Notificar a n8n (PR link) | Agente | **Pendiente** |
+| PR `developer` → `main` (producción) | Release manual | Fuera del alcance del agente |

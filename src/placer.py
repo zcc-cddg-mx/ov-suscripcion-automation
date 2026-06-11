@@ -1,4 +1,12 @@
-"""Place generated files into the target repo and optionally commit and push."""
+"""Place generated files into the target repo and optionally commit and push.
+
+Branch strategy:
+  feature/{ticket}_{suffix}  →  PR →  developer  (integration/QA)
+  developer                  →  PR →  main        (production — future, manual process)
+
+The Code Agent only operates on the developer branch. Promotion to main/production
+is a separate, manually-triggered step outside this agent's scope.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +23,8 @@ _MODULE_RESOURCES_PATH = {
     "ams-policy": "ams-policy/flyway/src/main/resources/db/migration",
 }
 
-_EXPECTED_FILES = 2  # exactly one .xlsx + one .java per migration
+_EXPECTED_FILES = 2       # exactly one .xlsx + one .java per migration
+_PR_TARGET_BRANCH = "developer"  # PRs always target developer; main/production is a separate manual step
 
 
 def place(
@@ -51,11 +60,11 @@ def place(
     return xlsx_dest, java_dest
 
 
-def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = "develop") -> None:
+def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = "developer") -> None:
     """Create and checkout *branch_name* from *base_branch* in *repo_root*.
 
-    Fetches the latest *base_branch* from origin before branching so the
-    feature branch is always up-to-date with pre-production.
+    Base branch is 'developer' (integration/QA). Feature branches are always
+    cut from developer — never from main/production.
     """
     r = str(Path(repo_root).resolve())
     subprocess.run(["git", "-C", r, "fetch", "origin", base_branch], check=True)
