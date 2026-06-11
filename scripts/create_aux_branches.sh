@@ -10,16 +10,17 @@
 # possible. The aux branch starts clean from the target base and receives only
 # the files that the feature branch added.
 #
+# All derived automatically from the feature branch name:
+#   repo       — read from config.json (same directory as this script's project root)
+#   base_name  — stem of the .xlsx file found in the feature branch
+#   ticket_id  — extracted from the feature branch commit message ([TICKET] desc)
+#   description — extracted from the feature branch commit message
+#
 # Usage:
-#   ./scripts/create_aux_branches.sh <repo_path> <feature_branch> <base_name> <ticket_id> <description>
+#   ./scripts/create_aux_branches.sh <feature_branch>
 #
 # Example:
-#   ./scripts/create_aux_branches.sh \
-#     ../ov-arizona-backend-ecuador \
-#     feature/ZNRX_67108_renov_agosto \
-#     V2026_06_11_15_43_27__ZNRX_67108_VH_ren_data_ago_2026 \
-#     "ZNRX-67108" \
-#     "VH_ren_data_ago_2026"
+#   ./scripts/create_aux_branches.sh feature/ZNRX_67108_renov_agosto
 #
 # Output branches pushed to origin:
 #   {base_name}_developer_auxiliar
@@ -31,14 +32,22 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Arguments
 # ---------------------------------------------------------------------------
-REPO_PATH="${1:?Usage: $0 <repo_path> <feature_branch> <base_name> <ticket_id> <description>}"
-FEATURE_BRANCH="${2:?Missing feature_branch}"
-BASE_NAME="${3:?Missing base_name}"
-TICKET_ID="${4:?Missing ticket_id}"
-DESCRIPTION="${5:?Missing description}"
+FEATURE_BRANCH="${1:?Usage: $0 <feature_branch>}"
 
-REPO="$(cd "$REPO_PATH" && pwd)"   # resolve to absolute path
-COMMIT_MSG="[${TICKET_ID}] ${DESCRIPTION}"
+# ---------------------------------------------------------------------------
+# Resolve repo from config.json (one level up from scripts/)
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_FILE="$PROJECT_ROOT/config.json"
+
+[ -f "$CONFIG_FILE" ] \
+  || { echo "ERROR: config.json not found at $CONFIG_FILE" >&2; exit 1; }
+
+# Extract repo value with python (already available in the conda env)
+REPO_PATH="$(python3 -c "import json,sys; print(json.load(open('$CONFIG_FILE'))['repo'])")"
+# Resolve relative path from project root
+REPO="$(cd "$PROJECT_ROOT/$REPO_PATH" && pwd)"
 
 # Target bases for the two aux branches
 BASE_BRANCHES=("developer" "test")
@@ -56,6 +65,7 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 step "Pre-flight checks"
 
 [ -d "$REPO/.git" ] || fail "Not a git repository: $REPO"
+log "Repo : $REPO"
 
 # Fetch everything so we have an up-to-date view of origin
 log "Fetching origin..."
@@ -65,8 +75,9 @@ git -C "$REPO" fetch origin
 git -C "$REPO" ls-remote --exit-code origin "$FEATURE_BRANCH" > /dev/null \
   || fail "Feature branch '$FEATURE_BRANCH' not found on origin"
 
-# Collect files added by the feature branch relative to developer
-# (only files new in the feature — additions only, not modifications)
+# ---------------------------------------------------------------------------
+# Detect migration files
+# ---------------------------------------------------------------------------
 step "Detecting migration files added by '$FEATURE_BRANCH'"
 CHANGED_FILES=$(git -C "$REPO" diff --name-only --diff-filter=A \
   "origin/developer...origin/${FEATURE_BRANCH}")
@@ -90,6 +101,32 @@ JAVA_STEM="$(basename "$JAVA_FILE" .java)"
 log "xlsx : $XLSX_FILE"
 log "java : $JAVA_FILE"
 log "Files validated ✓"
+
+# ---------------------------------------------------------------------------
+# Derive base_name, ticket_id, description from the feature branch
+# ---------------------------------------------------------------------------
+step "Deriving metadata from feature branch"
+
+# base_name = stem of the xlsx file  (e.g. V2026_06_11_15_43_27__ZNRX_67108_VH_ren_data_ago_2026)
+BASE_NAME="$XLSX_STEM"
+
+# commit message of the tip of the feature branch  (e.g. "[ZNRX-67108] VH_ren_data_ago_2026")
+FEATURE_COMMIT_MSG="$(git -C "$REPO" log -1 --format="%s" "origin/${FEATURE_BRANCH}")"
+
+# ticket_id = content inside the first [...]  (e.g. ZNRX-67108)
+TICKET_ID="$(echo "$FEATURE_COMMIT_MSG" | sed -n 's/^\[\([^]]*\)\].*/\1/p')"
+[ -n "$TICKET_ID" ] || fail "Could not extract ticket ID from commit message: '$FEATURE_COMMIT_MSG'"
+
+# description = everything after "[TICKET] "
+DESCRIPTION="$(echo "$FEATURE_COMMIT_MSG" | sed 's/^\[[^]]*\] //')"
+[ -n "$DESCRIPTION" ] || fail "Could not extract description from commit message: '$FEATURE_COMMIT_MSG'"
+
+COMMIT_MSG="[${TICKET_ID}] ${DESCRIPTION}"
+
+log "base_name   : $BASE_NAME"
+log "ticket_id   : $TICKET_ID"
+log "description : $DESCRIPTION"
+log "commit msg  : $COMMIT_MSG"
 
 # ---------------------------------------------------------------------------
 # Create one aux branch per target base
