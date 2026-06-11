@@ -2,21 +2,23 @@
 
 ## Rol en el pipeline global
 
-Este agente es el **Step 6** del pipeline de orquestación end-to-end:
+Este agente es el **Step 4** del pipeline de orquestación end-to-end:
 
 ```
 Jira (webhook)
   → n8n (normalización)
-  → Classifier Agent  — determina tipo de ticket
-  → Enricher Agent    — expande a requisito técnico estructurado
-  → QA Agent          — valida completitud y consistencia
+  → Classifier + Enricher Agent  — clasifica el ticket y construye requisito técnico estructurado
   → Code Agent ◀ este repo
-  → Azure Repos       — branch + Pull Request
-  → n8n               — actualiza Jira ("En revisión" + link PR)
+  → Azure Repos (Branch + PR)
+  → n8n (actualiza Jira → "En revisión" + link PR)
+  → QA Agent  — valida el PR (diff real, no el requisito abstracto)
+  → PR Aprobado / Observaciones → Jira + comentarios en PR
 ```
 
+**Cambio arquitectónico clave:** el QA Agent actúa *después* del PR, no antes del Code Agent. Valida el diff real en Azure Repos. El Code Agent no espera validación previa — recibe el requisito enriquecido y actúa directamente.
+
 **Input:** JSON payload estructurado (desde n8n) o CLI manual — ticket ID, tipo de migración, archivo de negocio, año/mes o entity. El campo `description` se auto-deriva; el path al repo viene de `config.json` local.  
-**Output:** dos archivos Flyway (`.xlsx` + `.java`) con nombre `V{YYYY_MM_DD_HH_MM_SS}__{TICKET}_{Description}`, colocados en el repo destino.
+**Output:** dos archivos Flyway (`.xlsx` + `.java`) con nombre `V{YYYY_MM_DD_HH_MM_SS}__{TICKET}_{Description}`, colocados en el repo destino como PR hacia `developer`.
 
 ---
 

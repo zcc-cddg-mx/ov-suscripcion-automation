@@ -54,7 +54,13 @@ Copy `config.json.example` to `config.json` and fill in your values (file is git
 
 ## What this tool does
 
-This is the **Code Agent** (Step 6) of a larger end-to-end orchestration pipeline: `Jira → n8n → Classifier → Enricher → QA → Code Agent → Azure Repos → Jira`. See `architecture/agent_architecture.md` for the full picture.
+This is the **Code Agent** (Step 4) of a larger end-to-end orchestration pipeline:
+
+```
+Jira → n8n → Classifier+Enricher Agent → Code Agent → Azure Repos (Branch+PR) → n8n (Jira "In Review") → QA Agent (validates PR) → PR Approved/Rejected
+```
+
+See `architecture/agent_architecture.md` for the full picture. Key design point: **QA runs after the PR is created**, validating the actual diff — not before the Code Agent.
 
 Automates Flyway migration requests for OV subscriptions. Each migration requires exactly two files with matching names — one `.xlsx` (data) and one `.java` (empty class that inherits `LoadFromFileMigrationTask`). The tool generates both and places them in the correct paths of the `ov-arizona-backend-ecuador` repo.
 

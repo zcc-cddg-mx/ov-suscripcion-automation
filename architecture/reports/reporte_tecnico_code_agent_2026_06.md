@@ -9,18 +9,20 @@
 
 ## 1. Contexto y rol del agente
 
-Este repositorio implementa el **Step 6 (Code Agent)** del pipeline de orquestación end-to-end de OV Suscripciones:
+Este repositorio implementa el **Step 4 (Code Agent)** del pipeline de orquestación end-to-end de OV Suscripciones:
 
 ```
 Jira (webhook)
   → n8n (normalización)
-  → Classifier Agent   — determina tipo de ticket
-  → Enricher Agent     — expande a requisito técnico estructurado
-  → QA Agent           — valida completitud y consistencia
+  → Classifier + Enricher Agent  — tipo de ticket + requisito técnico estructurado
   → Code Agent ◀ este repo
-  → Azure Repos        — branch + Pull Request
-  → n8n                — actualiza Jira ("En revisión" + link PR)
+  → Azure Repos (Branch + PR)
+  → n8n (actualiza Jira → "En revisión" + link PR)
+  → QA Agent  — valida el diff del PR en Azure Repos
+  → PR Aprobado / Observaciones → Jira + comentarios PR
 ```
+
+**Cambio arquitectónico v2:** Classifier y Enricher se fusionaron en un solo agente. El QA Agent se desplazó al final del pipeline — valida el código real del PR, no el requisito abstracto. El Code Agent recibe el requisito ya enriquecido y actúa sin esperar validación previa.
 
 El agente recibe un **JSON payload estructurado** desde n8n (construido por los agentes anteriores) y produce:
 
