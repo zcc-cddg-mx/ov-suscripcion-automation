@@ -35,6 +35,7 @@ from src import generator_ren_data, generator_rules, java_template, placer
 from src import build_check
 from src.config import load_config
 from src.description import build_description, build_branch_name
+from src.logger import log
 
 
 def _timestamp() -> str:
@@ -57,6 +58,7 @@ def cmd_ren_data(args: argparse.Namespace) -> dict:
     module = "ams-policy"
     ticket_id = args.ticket
     ticket_safe = _sanitize_ticket(ticket_id)
+    compile_flag = getattr(args, "compile", True)
 
     description = args.description or build_description(
         "ren-data", month=args.month, year=args.year
@@ -68,10 +70,10 @@ def cmd_ren_data(args: argparse.Namespace) -> dict:
         xlsx_out = tmp_path / f"{base_name}.xlsx"
         java_out = tmp_path / f"{base_name}.java"
 
-        print(f"Generating Excel: {xlsx_out.name}")
+        log("GEN", f"Generating Excel: {xlsx_out.name}")
         generator_ren_data.generate(raw_input, xlsx_out, year=args.year, month=args.month)
 
-        print(f"Generating Java class: {java_out.name}")
+        log("GEN", f"Generating Java class: {java_out.name}")
         java_src = java_template.generate(base_name, module)
         java_out.write_text(java_src, encoding="utf-8")
 
@@ -80,30 +82,27 @@ def cmd_ren_data(args: argparse.Namespace) -> dict:
         aux_branch = None
         if args.commit:
             branch = build_branch_name("ren-data", ticket_safe, month=args.month)
-            print(f"Creating feature branch: {branch}")
             placer.create_feature_branch(repo_root, branch)
 
-        print(f"Placing files in repo ({module})...")
+        log("PLACE", f"Placing files in repo ({module})")
         xlsx_dest, java_dest = placer.place(xlsx_out, java_out, base_name, module, repo_root)
-        print(f"  xlsx → {xlsx_dest.relative_to(repo_root)}")
-        print(f"  java → {java_dest.relative_to(repo_root)}")
+        log("PLACE", f"xlsx → {xlsx_dest.relative_to(repo_root)}")
+        log("PLACE", f"java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
-            print("Running build check (compileJava)...")
-            build_check.verify(repo_root, module)
-            print("  build check passed")
+            if compile_flag:
+                build_check.verify(repo_root, module)
+            else:
+                log("BUILD", "compile=false — skipping Gradle compilation")
 
-            print("Committing and pushing feature branch...")
             commit_id = placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
-            print("Creating auxiliary branch from developer...")
             aux_branch = placer.create_auxiliary_branch(
                 repo_root, base_name, branch, [xlsx_dest, java_dest], ticket_id, description
             )
-            print(f"Done. Feature: {branch} | Aux: {aux_branch}")
         else:
-            print("Skipping branch + commit (use --commit to auto-commit).")
+            log("GIT", "commit=false — skipping branch + commit")
 
     return {
         "branch": branch,
@@ -122,6 +121,7 @@ def cmd_rules(args: argparse.Namespace) -> dict:
     ticket_id = args.ticket
     ticket_safe = _sanitize_ticket(ticket_id)
     description = entity_name
+    compile_flag = getattr(args, "compile", True)
 
     resources_path = repo_root / placer._MODULE_RESOURCES_PATH[module]
     base_name = _build_base_name(ticket_id, description)
@@ -131,10 +131,10 @@ def cmd_rules(args: argparse.Namespace) -> dict:
         xlsx_out = tmp_path / f"{base_name}.xlsx"
         java_out = tmp_path / f"{base_name}.java"
 
-        print(f"Generating Excel: {xlsx_out.name}")
+        log("GEN", f"Generating Excel: {xlsx_out.name}")
         generator_rules.generate(raw_input, xlsx_out, entity_name, resources_path)
 
-        print(f"Generating Java class: {java_out.name}")
+        log("GEN", f"Generating Java class: {java_out.name}")
         java_src = java_template.generate(base_name, module)
         java_out.write_text(java_src, encoding="utf-8")
 
@@ -143,30 +143,27 @@ def cmd_rules(args: argparse.Namespace) -> dict:
         aux_branch = None
         if args.commit:
             branch = build_branch_name("rules", ticket_safe, entity=entity_name)
-            print(f"Creating feature branch: {branch}")
             placer.create_feature_branch(repo_root, branch)
 
-        print(f"Placing files in repo ({module})...")
+        log("PLACE", f"Placing files in repo ({module})")
         xlsx_dest, java_dest = placer.place(xlsx_out, java_out, base_name, module, repo_root)
-        print(f"  xlsx → {xlsx_dest.relative_to(repo_root)}")
-        print(f"  java → {java_dest.relative_to(repo_root)}")
+        log("PLACE", f"xlsx → {xlsx_dest.relative_to(repo_root)}")
+        log("PLACE", f"java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
-            print("Running build check (compileJava)...")
-            build_check.verify(repo_root, module)
-            print("  build check passed")
+            if compile_flag:
+                build_check.verify(repo_root, module)
+            else:
+                log("BUILD", "compile=false — skipping Gradle compilation")
 
-            print("Committing and pushing feature branch...")
             commit_id = placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
-            print("Creating auxiliary branch from developer...")
             aux_branch = placer.create_auxiliary_branch(
                 repo_root, base_name, branch, [xlsx_dest, java_dest], ticket_id, description
             )
-            print(f"Done. Feature: {branch} | Aux: {aux_branch}")
         else:
-            print("Skipping branch + commit (use --commit to auto-commit).")
+            log("GIT", "commit=false — skipping branch + commit")
 
     return {
         "branch": branch,
@@ -198,25 +195,36 @@ def run_payload(payload: dict, repo_root: Path | None = None) -> dict:
         entity=payload.get("entity"),
     )
 
+    compile_flag = payload.get("compile", True)
+    commit_flag = payload.get("commit", False)
+
+    log("RECV", f"ticket={payload['ticket']} command={command} commit={commit_flag} compile={compile_flag}")
+
     ns = argparse.Namespace(
         input=payload["input"],
         ticket=payload["ticket"],
         description=description,
         repo=str(repo_root),
-        commit=payload.get("commit", False),
+        commit=commit_flag,
+        compile=compile_flag,
         year=payload.get("year"),
         month=payload.get("month"),
         entity=payload.get("entity"),
     )
 
-    print(f"Running payload: command={command}, ticket={payload['ticket']}, description={description}")
+    import time as _time
+    _t0 = _time.monotonic()
 
     if command == "ren-data":
-        return cmd_ren_data(ns)
+        result = cmd_ren_data(ns)
     elif command == "rules":
-        return cmd_rules(ns)
+        result = cmd_rules(ns)
     else:
         raise ValueError(f"Unknown command in payload: {command!r}")
+
+    elapsed = _time.monotonic() - _t0
+    log("DONE", f"ticket={payload['ticket']} branch={result.get('branch')} commit={result.get('commit_id', '')[:8] if result.get('commit_id') else 'none'} elapsed={elapsed:.1f}s")
+    return result
 
 
 def cmd_run_payload(args: argparse.Namespace) -> None:

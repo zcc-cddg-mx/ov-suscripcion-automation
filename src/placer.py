@@ -18,6 +18,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from src.logger import log
+
 _MODULE_JAVA_PATH = {
     "ams-rule": "ams-rule/flyway/src/main/java/eu/ncdc/arizona/rule/db/migration",
     "ams-policy": "ams-policy/flyway/src/main/java/eu/ncdc/arizona/policy/db/migration",
@@ -71,6 +73,7 @@ def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = 
     cut from developer — never from main/production.
     """
     r = str(Path(repo_root).resolve())
+    log("GIT", f"fetch origin/{base_branch}")
     subprocess.run(["git", "-C", r, "fetch", "origin", base_branch], check=True)
     # Stash any local modifications (e.g. build config files modified by local dev tooling)
     # so checkout doesn't fail. Stash is intentionally not popped — those changes are
@@ -80,7 +83,7 @@ def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = 
         ["git", "-C", r, "checkout", "-b", branch_name, f"origin/{base_branch}"],
         check=True,
     )
-    print(f"  branch '{branch_name}' created from origin/{base_branch}")
+    log("GIT", f"branch '{branch_name}' created from origin/{base_branch}")
 
 
 def _validate_migration_pair(files: list[Path]) -> None:
@@ -126,9 +129,11 @@ def git_add_commit_push(
     abs_root = Path(repo_root).resolve()
     rel_files = [str(Path(f).resolve().relative_to(abs_root)) for f in files]
 
+    log("GIT", f"staging {len(rel_files)} file(s) on branch '{branch_name}'")
     subprocess.run(["git", "-C", str(abs_root), "add"] + rel_files, check=True)
     msg = f"[{ticket_id}] {description}"
     subprocess.run(["git", "-C", str(abs_root), "commit", "-m", msg], check=True)
+    log("GIT", f"pushing feature branch '{branch_name}' to origin")
     subprocess.run(
         ["git", "-C", str(abs_root), "push", "--set-upstream", "origin", branch_name],
         check=True,
@@ -138,7 +143,7 @@ def git_add_commit_push(
         check=True, capture_output=True, text=True,
     )
     commit_id = result.stdout.strip()
-    print(f"  pushed '{branch_name}' to origin (commit {commit_id[:8]})")
+    log("GIT", f"pushed '{branch_name}' to origin (commit {commit_id[:8]})")
     return commit_id
 
 
@@ -166,12 +171,13 @@ def create_auxiliary_branch(
     abs_root = Path(repo_root).resolve()
 
     # Create aux branch from latest developer
+    log("GIT", f"fetch origin/{_PR_TARGET_BRANCH} for auxiliary branch")
     subprocess.run(["git", "-C", r, "fetch", "origin", _PR_TARGET_BRANCH], check=True)
     subprocess.run(
         ["git", "-C", r, "checkout", "-b", aux_branch, f"origin/{_PR_TARGET_BRANCH}"],
         check=True,
     )
-    print(f"  aux branch '{aux_branch}' created from origin/{_PR_TARGET_BRANCH}")
+    log("GIT", f"aux branch '{aux_branch}' created from origin/{_PR_TARGET_BRANCH}")
 
     # Extract each file blob from the feature branch and write it into the aux branch
     for f in files:
@@ -193,11 +199,12 @@ def create_auxiliary_branch(
     subprocess.run(["git", "-C", r, "commit", "-m", msg], check=True)
 
     # Push aux branch to origin
+    log("GIT", f"pushing aux branch '{aux_branch}' to origin")
     subprocess.run(
         ["git", "-C", r, "push", "--set-upstream", "origin", aux_branch],
         check=True,
     )
-    print(f"  pushed aux branch '{aux_branch}' to origin")
+    log("GIT", f"pushed aux branch '{aux_branch}' to origin")
 
     return aux_branch
 

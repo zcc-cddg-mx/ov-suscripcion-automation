@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
+
+from src.logger import log
 
 # Maps Code Agent module names to Gradle subproject paths
 _MODULE_GRADLE_PATH = {
@@ -80,7 +83,8 @@ def verify(repo_root: Path, module: str) -> None:
         "-PcustomerOverlay=ecuador",
     ]
 
-    print(f"[build] gradle {gradle_path}:compileJava", flush=True)
+    log("BUILD", f"gradle {gradle_path}:compileJava — module={module}")
+    t0 = time.monotonic()
 
     proc = subprocess.Popen(
         cmd,
@@ -98,6 +102,7 @@ def verify(repo_root: Path, module: str) -> None:
         print(f"[gradle] {line}", flush=True)
 
     proc.wait()
+    elapsed = time.monotonic() - t0
 
     if proc.returncode != 0:
         output = "\n".join(output_lines).strip()
@@ -105,4 +110,4 @@ def verify(repo_root: Path, module: str) -> None:
             f"Compilation failed for module '{module}':\n{output}"
         )
 
-    print(f"[build] compilation OK — {module}", flush=True)
+    log("BUILD", f"compilation OK — {module} ({elapsed:.1f}s)")

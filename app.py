@@ -1,41 +1,60 @@
 """HTTP API listener for the Code Agent (architecture v3).
 
-Exposes two endpoints:
+Exposes three endpoints:
 
-  GET  /health   — liveness check; returns {"status": "ok", "service": "code-agent"}
-  POST /run      — execute a migration from a JSON payload sent by n8n
+  GET  /health              — liveness check
+  POST /run                 — enqueue a migration task (returns 202 immediately)
+  GET  /status/<task_id>    — poll task status
 
-POST /run request body (same schema as run-payload CLI):
+POST /run request body:
 
   Tipo 1 — ren-data:
     {"command": "ren-data", "ticket": "ZNRX-67108",
      "input": "requirements/.../baseticketMES.xlsx",
-     "year": 2026, "month": 8, "commit": true}
+     "year": 2026, "month": 8,
+     "commit": true, "compile": true}
 
   Tipo 2 — rules:
     {"command": "rules", "ticket": "RITM2500000",
-     "input": "data/raw.xlsx", "entity": "VHPlanRules", "commit": true}
+     "input": "data/raw.xlsx", "entity": "VHPlanRules",
+     "commit": true, "compile": true}
 
-POST /run response (success):
-  {"status": "success", "branch": "...", "commit_id": "...",
-   "repo": "...", "build_status": null, "summary": "..."}
+POST /run response — always 202 Accepted (or 400 on malformed body):
+  {"status": "queued",    "task_id": "a1b2c3d4"}
+  {"status": "rejected",  "task_id": "a1b2c3d4",
+   "active_task": {"task_id": "...", "ticket": "...", "started_at": "..."}}
 
-POST /run response (error):
-  {"status": "error", "error": "...", "build_status": null}
+GET /status/<task_id>:
+  {"status": "queued" | "running" | "done" | "error" | "rejected", ...result fields}
 """
 
 from __future__ import annotations
 
 import os
+import threading
 import traceback
+import uuid
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
 
 from main import run_payload
 from src.build_check import BuildCheckError
 from src.config import load_config
+from src.logger import log
 
 app = Flask(__name__)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task registry and concurrency control
+# ─────────────────────────────────────────────────────────────────────────────
+_tasks: dict[str, dict] = {}
+_lock = threading.Lock()
+_current_task: dict | None = None  # {task_id, ticket, started_at}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 @app.get("/health")
@@ -49,37 +68,86 @@ def run():
     if not payload:
         return jsonify({"status": "error", "error": "Request body must be JSON"}), 400
 
-    try:
-        result = run_payload(payload)
-    except BuildCheckError as exc:
-        return jsonify({"status": "error", "error": str(exc), "build_status": "failed"}), 422
-    except (ValueError, KeyError) as exc:
-        return jsonify({"status": "error", "error": str(exc), "build_status": None}), 422
-    except Exception as exc:
-        traceback.print_exc()
-        return jsonify({"status": "error", "error": str(exc), "build_status": None}), 500
+    task_id = str(uuid.uuid4())[:8]
+    _tasks[task_id] = {"status": "queued", "task_id": task_id}
 
-    cfg = load_config()
-    repo_name = os.path.basename(os.path.normpath(cfg.get("repo", "")))
+    def worker():
+        global _current_task
 
-    branch = result.get("branch")
-    commit_id = result.get("commit_id")
-    summary = (
-        f"Migration {result['base_name']} generated and pushed to {branch}"
-        if branch
-        else f"Migration {result['base_name']} generated (no commit)"
-    )
+        # Concurrency check — reject immediately if another task is running
+        if not _lock.acquire(blocking=False):
+            active = _current_task or {}
+            log("RECV", f"task_id={task_id} rejected — task {active.get('task_id')} already running")
+            _tasks[task_id].update({
+                "status": "rejected",
+                "error": f"Task {active.get('task_id')} ({active.get('ticket')}) is already running",
+                "active_task": active,
+            })
+            return
 
-    build_status = "success" if result.get("commit_id") else None
+        _current_task = {
+            "task_id": task_id,
+            "ticket": payload.get("ticket"),
+            "started_at": _now_iso(),
+        }
+        _tasks[task_id]["status"] = "running"
 
-    return jsonify({
-        "status": "success",
-        "branch": branch,
-        "commit_id": commit_id,
-        "repo": repo_name,
-        "build_status": build_status,
-        "summary": summary,
-    })
+        try:
+            result = run_payload(payload)
+        except BuildCheckError as exc:
+            log("ERROR", f"task_id={task_id} build failed: {exc}")
+            _tasks[task_id].update({
+                "status": "error",
+                "error": str(exc),
+                "build_status": "failed",
+            })
+        except (ValueError, KeyError) as exc:
+            log("ERROR", f"task_id={task_id} validation error: {exc}")
+            _tasks[task_id].update({
+                "status": "error",
+                "error": str(exc),
+                "build_status": None,
+            })
+        except Exception as exc:
+            traceback.print_exc()
+            log("ERROR", f"task_id={task_id} unexpected error: {exc}")
+            _tasks[task_id].update({
+                "status": "error",
+                "error": str(exc),
+                "build_status": None,
+            })
+        else:
+            cfg = load_config()
+            repo_name = os.path.basename(os.path.normpath(cfg.get("repo", "")))
+            branch = result.get("branch")
+            summary = (
+                f"Migration {result['base_name']} generated and pushed to {branch}"
+                if branch
+                else f"Migration {result['base_name']} generated (no commit)"
+            )
+            _tasks[task_id].update({
+                "status": "done",
+                "branch": branch,
+                "aux_branch": result.get("aux_branch"),
+                "commit_id": result.get("commit_id"),
+                "repo": repo_name,
+                "build_status": "success" if result.get("commit_id") else None,
+                "summary": summary,
+            })
+        finally:
+            _current_task = None
+            _lock.release()
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({"status": "queued", "task_id": task_id}), 202
+
+
+@app.get("/status/<task_id>")
+def status(task_id: str):
+    task = _tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "task not found"}), 404
+    return jsonify(task)
 
 
 if __name__ == "__main__":
