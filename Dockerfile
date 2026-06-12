@@ -1,6 +1,8 @@
 # Code Agent — OV Suscripcion Automation
 # Architecture v3: containerized HTTP service (SERVICIOSIAS)
 #
+# Inherits from ams-ubuntu-lite:26 — Ubuntu 26.04 + Temurin 8 JDK + Zurich CA certs
+#
 # Build:
 #   docker build -t ov-code-agent:latest .
 #
@@ -14,62 +16,53 @@
 #     -v /path/to/ov-arizona-backend-ecuador:/repos/ov-arizona-backend-ecuador \
 #     ov-code-agent:latest
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Stage 1: Python dependencies
-# ─────────────────────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS python-deps
-
-WORKDIR /install
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install/pkg -r requirements.txt && \
-    pip install --no-cache-dir --prefix=/install/pkg flask==3.1.1
-
+FROM ams-ubuntu-lite:26
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 2: Runtime image
+# System dependencies
 # ─────────────────────────────────────────────────────────────────────────────
-FROM eclipse-temurin:8-jdk-jammy
-
-# Install Python 3.12, git, and curl
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -qq update && \
+    apt-get -qq -y install --no-install-recommends \
         python3.12 \
-        python3.12-venv \
         python3-pip \
         git \
-        curl \
-        ca-certificates \
+        unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Make python3.12 the default python3
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
+    update-alternatives --install /usr/bin/python  python  /usr/bin/python3.12 1
 
-# Install Gradle 6.8.3 (same version used locally)
+# ─────────────────────────────────────────────────────────────────────────────
+# Gradle 6.8.3
+# ─────────────────────────────────────────────────────────────────────────────
 ARG GRADLE_VERSION=6.8.3
-RUN curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-        -o /tmp/gradle.zip && \
+RUN wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+        -O /tmp/gradle.zip && \
     unzip -q /tmp/gradle.zip -d /opt && \
     ln -s /opt/gradle-${GRADLE_VERSION}/bin/gradle /usr/local/bin/gradle && \
     rm /tmp/gradle.zip
 
-# Copy Python packages from stage 1
-COPY --from=python-deps /install/pkg /usr/local
+# ─────────────────────────────────────────────────────────────────────────────
+# Python dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt flask==3.1.1
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Application
 # ─────────────────────────────────────────────────────────────────────────────
 WORKDIR /app
-
 COPY . .
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Entrypoint
 # ─────────────────────────────────────────────────────────────────────────────
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+ENV JAVA_HOME=/usr/lib/jvm/temurin-8-jdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 EXPOSE 5000
 
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["python", "app.py"]
