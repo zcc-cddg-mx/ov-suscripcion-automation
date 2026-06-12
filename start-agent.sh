@@ -6,8 +6,8 @@
 #   GIT_PAT=<pat-azure-repos> \
 #   ./start-agent.sh
 
-GRADLE_DEV_PASSWORD="AZURE_PAT_PLACEHOLDER"
-GIT_PAT="AZURE_PAT_PLACEHOLDER"
+: "${GRADLE_DEV_PASSWORD:?set GRADLE_DEV_PASSWORD before running}"
+: "${GIT_PAT:?set GIT_PAT before running}"
 
 set -euo pipefail
 

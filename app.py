@@ -69,21 +69,29 @@ def run():
         return jsonify({"status": "error", "error": "Request body must be JSON"}), 400
 
     task_id = str(uuid.uuid4())[:8]
+
+    # Concurrency check in the request handler (not the worker thread) so the
+    # rejection is instantaneous — no race between thread scheduling and the lock.
+    if not _lock.acquire(blocking=False):
+        active = _current_task or {}
+        log("RECV", (
+            f"task_id={task_id} ticket={payload.get('ticket')} REJECTED — "
+            f"task {active.get('task_id')} ({active.get('ticket')}) already running"
+        ))
+        _tasks[task_id] = {
+            "status": "rejected",
+            "task_id": task_id,
+            "error": f"Task {active.get('task_id')} ({active.get('ticket')}) is already running",
+            "active_task": active,
+        }
+        return jsonify({"status": "rejected", "task_id": task_id, "active_task": active}), 202
+
+    # Lock acquired — register task and hand off to worker thread
     _tasks[task_id] = {"status": "queued", "task_id": task_id}
+    log("RECV", f"task_id={task_id} ticket={payload.get('ticket')} ACCEPTED — lock acquired")
 
     def worker():
         global _current_task
-
-        # Concurrency check — reject immediately if another task is running
-        if not _lock.acquire(blocking=False):
-            active = _current_task or {}
-            log("RECV", f"task_id={task_id} rejected — task {active.get('task_id')} already running")
-            _tasks[task_id].update({
-                "status": "rejected",
-                "error": f"Task {active.get('task_id')} ({active.get('ticket')}) is already running",
-                "active_task": active,
-            })
-            return
 
         _current_task = {
             "task_id": task_id,

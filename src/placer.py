@@ -2,7 +2,7 @@
 
 Branch strategy:
   feature/{ticket}_{suffix}           →  push to origin
-  {base_name}_developer_auxiliar      →  created from origin/developer, receives only
+  {feature_branch}_developer_auxiliar →  created from origin/developer, receives only
                                           the 2 migration files from the feature branch
                                           (xlsx + java), then pushed to origin
   developer                           →  PR target (integration/QA)
@@ -149,7 +149,6 @@ def git_add_commit_push(
 
 def create_auxiliary_branch(
     repo_root: Path,
-    base_name: str,
     feature_branch: str,
     files: list[Path],
     ticket_id: str,
@@ -157,7 +156,8 @@ def create_auxiliary_branch(
 ) -> str:
     """Create an auxiliary branch from origin/developer containing only the 2 migration files.
 
-    The auxiliary branch name is: {base_name}_developer_auxiliar
+    The auxiliary branch name is: {feature_branch}_developer_auxiliar
+    e.g. feature/ZNRX_671093_renov_agosto_developer_auxiliar
 
     Strategy: instead of merging (which risks conflicts), we create the aux branch
     clean from developer and use 'git show' to copy the exact file blobs from the
@@ -166,7 +166,7 @@ def create_auxiliary_branch(
 
     Returns the auxiliary branch name.
     """
-    aux_branch = f"{base_name}_developer_auxiliar"
+    aux_branch = f"{feature_branch}_developer_auxiliar"
     r = str(Path(repo_root).resolve())
     abs_root = Path(repo_root).resolve()
 

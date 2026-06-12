@@ -17,7 +17,7 @@ RESP=$(curl -sf -X POST "${BASE_URL}/run" \
   -H "Content-Type: application/json" \
   -d '{
     "command": "ren-data",
-    "ticket": "INC0001",
+    "ticket": "INC0002",
     "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
     "year": 2026,
     "month": 8,
@@ -45,7 +45,7 @@ RESP=$(curl -sf -X POST "${BASE_URL}/run" \
   -H "Content-Type: application/json" \
   -d '{
     "command": "ren-data",
-    "ticket": "INC0001",
+    "ticket": "INC0002",
     "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
     "year": 2026,
     "month": 8,
@@ -75,7 +75,7 @@ curl -sf -X POST "${BASE_URL}/run" \
   -H "Content-Type: application/json" \
   -d '{
     "command": "ren-data",
-    "ticket": "INC0001",
+    "ticket": "INC0002",
     "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
     "year": 2026,
     "month": 8,

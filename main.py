@@ -99,7 +99,7 @@ def cmd_ren_data(args: argparse.Namespace) -> dict:
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
             aux_branch = placer.create_auxiliary_branch(
-                repo_root, base_name, branch, [xlsx_dest, java_dest], ticket_id, description
+                repo_root, branch, [xlsx_dest, java_dest], ticket_id, description
             )
         else:
             log("GIT", "commit=false — skipping branch + commit")
@@ -160,7 +160,7 @@ def cmd_rules(args: argparse.Namespace) -> dict:
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
             aux_branch = placer.create_auxiliary_branch(
-                repo_root, base_name, branch, [xlsx_dest, java_dest], ticket_id, description
+                repo_root, branch, [xlsx_dest, java_dest], ticket_id, description
             )
         else:
             log("GIT", "commit=false — skipping branch + commit")
@@ -198,7 +198,7 @@ def run_payload(payload: dict, repo_root: Path | None = None) -> dict:
     compile_flag = payload.get("compile", True)
     commit_flag = payload.get("commit", False)
 
-    log("RECV", f"ticket={payload['ticket']} command={command} commit={commit_flag} compile={compile_flag}")
+    log("RECV", f"ticket={payload['ticket']} command={command} commit={commit_flag} compile={compile_flag} — processing")
 
     ns = argparse.Namespace(
         input=payload["input"],
