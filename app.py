@@ -32,6 +32,7 @@ import traceback
 from flask import Flask, jsonify, request
 
 from main import run_payload
+from src.build_check import BuildCheckError
 from src.config import load_config
 
 app = Flask(__name__)
@@ -50,6 +51,8 @@ def run():
 
     try:
         result = run_payload(payload)
+    except BuildCheckError as exc:
+        return jsonify({"status": "error", "error": str(exc), "build_status": "failed"}), 422
     except (ValueError, KeyError) as exc:
         return jsonify({"status": "error", "error": str(exc), "build_status": None}), 422
     except Exception as exc:
@@ -67,12 +70,14 @@ def run():
         else f"Migration {result['base_name']} generated (no commit)"
     )
 
+    build_status = "success" if result.get("commit_id") else None
+
     return jsonify({
         "status": "success",
         "branch": branch,
         "commit_id": commit_id,
         "repo": repo_name,
-        "build_status": None,
+        "build_status": build_status,
         "summary": summary,
     })
 

@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import app as app_module
 from app import app
+from src.build_check import BuildCheckError
 
 
 @pytest.fixture
@@ -166,3 +167,12 @@ class TestRunErrors:
         body = r.get_json()
         assert body["status"] == "error"
         assert body["build_status"] is None
+
+    def test_build_check_error_returns_422_with_failed_status(self, client) -> None:
+        with patch("app.run_payload", side_effect=BuildCheckError("Compilation failed:\nerror: ';' expected")):
+            r = client.post("/run", json=_REN_DATA_PAYLOAD)
+        assert r.status_code == 422
+        body = r.get_json()
+        assert body["status"] == "error"
+        assert body["build_status"] == "failed"
+        assert "Compilation failed" in body["error"]

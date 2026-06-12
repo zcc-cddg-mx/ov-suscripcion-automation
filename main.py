@@ -32,6 +32,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src import generator_ren_data, generator_rules, java_template, placer
+from src import build_check
 from src.config import load_config
 from src.description import build_description, build_branch_name
 
@@ -88,6 +89,10 @@ def cmd_ren_data(args: argparse.Namespace) -> dict:
         print(f"  java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
+            print("Running build check (compileJava)...")
+            build_check.verify(repo_root, module)
+            print("  build check passed")
+
             print("Committing and pushing feature branch...")
             commit_id = placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
@@ -147,6 +152,10 @@ def cmd_rules(args: argparse.Namespace) -> dict:
         print(f"  java → {java_dest.relative_to(repo_root)}")
 
         if args.commit:
+            print("Running build check (compileJava)...")
+            build_check.verify(repo_root, module)
+            print("  build check passed")
+
             print("Committing and pushing feature branch...")
             commit_id = placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
