@@ -1,0 +1,19 @@
+// Injects the baked-plugins Maven2 repo into buildscript repositories.
+// Provides gradle-test-logger-plugin and gradle-git-properties, which are not
+// published to Azure Artifacts.
+def addBakedRepo = { repos ->
+    if (repos.findByName("bakedPlugins") == null) {
+        repos.maven {
+            name = "bakedPlugins"
+            url "file:///opt/gradle-plugins/maven2"
+        }
+    }
+}
+
+gradle.settingsEvaluated { settings ->
+    addBakedRepo(settings.buildscript.repositories)
+}
+
+gradle.projectsLoaded { g ->
+    addBakedRepo(g.rootProject.buildscript.repositories)
+}

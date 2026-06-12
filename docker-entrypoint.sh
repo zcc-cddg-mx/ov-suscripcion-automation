@@ -83,6 +83,9 @@ printf "https://%s:%s@dev.azure.com\n" "${GIT_USERNAME}" "${GIT_PAT}" \
 git config --global user.email "${GIT_USERNAME}@zurichinsurance.com"
 git config --global user.name  "${GIT_USERNAME}"
 
+# Allow git to operate on the mounted repo (owned by host user, not container root)
+git config --global --add safe.directory "${REPO_PATH}"
+
 echo "[entrypoint] git credentials configured"
 
 # ─────────────────────────────────────────────────────────────────────────────

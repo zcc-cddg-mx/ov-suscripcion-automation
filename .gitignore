@@ -6,6 +6,10 @@ data/
 # Local agent configuration (contains server-specific paths)
 config.json
 
+# Docker build artifacts — not committed, must be present locally to build the image
+gradle-6.8.3.zip
+gradle-plugins/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

@@ -14,37 +14,52 @@
 #     -e GIT_USERNAME=carlos.duarte2 \
 #     -e GIT_PAT=<azure-repos-pat> \
 #     -v /path/to/ov-arizona-backend-ecuador:/repos/ov-arizona-backend-ecuador \
+#     -v /data/gradle-cache:/root/.gradle/caches \
 #     ov-code-agent:latest
+#
+# Gradle cache volume (/data/gradle-cache):
+#   - First run downloads JARs from Azure Artifacts → cached in the host volume
+#   - Subsequent runs reuse the cache — no re-download needed
+#   - Credentials are injected at runtime (not baked in the image)
 
-FROM ams-ubuntu-lite:26
+# ubnutu 24.04 + Temurin 8 JDK + Python 3.12 + wget + Zurich CA certs
+FROM ams-ubuntu-lite:latest
 
 # ─────────────────────────────────────────────────────────────────────────────
 # System dependencies
+# Base provides: Ubuntu 24.04, Temurin 8 JDK, Python 3.12, wget, Zurich CA certs
+# We add: git, unzip, pip
 # ─────────────────────────────────────────────────────────────────────────────
 RUN apt-get -qq update && \
     apt-get -qq -y install --no-install-recommends \
-        python3.12 \
         python3-pip \
+        python3-venv \
         git \
         unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python  python  /usr/bin/python3.12 1
-
 # ─────────────────────────────────────────────────────────────────────────────
-# Gradle 6.8.3
+# Gradle 6.8.3 — copied from local artifact (avoids corporate SSL interception)
 # ─────────────────────────────────────────────────────────────────────────────
-ARG GRADLE_VERSION=6.8.3
-RUN wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-        -O /tmp/gradle.zip && \
-    unzip -q /tmp/gradle.zip -d /opt && \
-    ln -s /opt/gradle-${GRADLE_VERSION}/bin/gradle /usr/local/bin/gradle && \
+COPY gradle-6.8.3.zip /tmp/gradle.zip
+RUN unzip -q /tmp/gradle.zip -d /opt && \
+    ln -s /opt/gradle-6.8.3/bin/gradle /usr/local/bin/gradle && \
     rm /tmp/gradle.zip
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Python dependencies
+# Gradle plugin JARs not published to Azure Artifacts — baked as a Maven2 repo.
+# init.d/baked-plugins.gradle injects this repo into every buildscript so
+# Gradle resolves them locally without modifying the backend build.gradle.
 # ─────────────────────────────────────────────────────────────────────────────
+COPY gradle-plugins/maven2 /opt/gradle-plugins/maven2
+COPY gradle-init.d/baked-plugins.gradle /root/.gradle/init.d/baked-plugins.gradle
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Python dependencies — venv isolates from system packages (avoids RECORD conflicts)
+# ─────────────────────────────────────────────────────────────────────────────
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt flask==3.1.1
 
