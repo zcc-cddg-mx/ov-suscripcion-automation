@@ -50,7 +50,7 @@ def _build_base_name(ticket_id: str, description: str) -> str:
     return f"V{ts}__{_sanitize_ticket(ticket_id)}_{description}"
 
 
-def cmd_ren_data(args: argparse.Namespace) -> None:
+def cmd_ren_data(args: argparse.Namespace) -> dict:
     raw_input = Path(args.input)
     repo_root = Path(args.repo)
     module = "ams-policy"
@@ -75,6 +75,8 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
         java_out.write_text(java_src, encoding="utf-8")
 
         branch = None
+        commit_id = None
+        aux_branch = None
         if args.commit:
             branch = build_branch_name("ren-data", ticket_safe, month=args.month)
             print(f"Creating feature branch: {branch}")
@@ -87,7 +89,7 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
 
         if args.commit:
             print("Committing and pushing feature branch...")
-            placer.git_add_commit_push(
+            commit_id = placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
             print("Creating auxiliary branch from developer...")
@@ -98,8 +100,16 @@ def cmd_ren_data(args: argparse.Namespace) -> None:
         else:
             print("Skipping branch + commit (use --commit to auto-commit).")
 
+    return {
+        "branch": branch,
+        "commit_id": commit_id,
+        "aux_branch": aux_branch,
+        "base_name": base_name,
+        "module": module,
+    }
 
-def cmd_rules(args: argparse.Namespace) -> None:
+
+def cmd_rules(args: argparse.Namespace) -> dict:
     raw_input = Path(args.input)
     repo_root = Path(args.repo)
     module = "ams-rule"
@@ -124,6 +134,8 @@ def cmd_rules(args: argparse.Namespace) -> None:
         java_out.write_text(java_src, encoding="utf-8")
 
         branch = None
+        commit_id = None
+        aux_branch = None
         if args.commit:
             branch = build_branch_name("rules", ticket_safe, entity=entity_name)
             print(f"Creating feature branch: {branch}")
@@ -136,7 +148,7 @@ def cmd_rules(args: argparse.Namespace) -> None:
 
         if args.commit:
             print("Committing and pushing feature branch...")
-            placer.git_add_commit_push(
+            commit_id = placer.git_add_commit_push(
                 repo_root, [xlsx_dest, java_dest], ticket_id, description, branch
             )
             print("Creating auxiliary branch from developer...")
@@ -147,22 +159,28 @@ def cmd_rules(args: argparse.Namespace) -> None:
         else:
             print("Skipping branch + commit (use --commit to auto-commit).")
 
+    return {
+        "branch": branch,
+        "commit_id": commit_id,
+        "aux_branch": aux_branch,
+        "base_name": base_name,
+        "module": module,
+    }
 
-def cmd_run_payload(args: argparse.Namespace) -> None:
-    """Execute a migration from a structured JSON payload (n8n integration)."""
-    payload_path = Path(args.payload)
-    if not payload_path.exists():
-        print(f"Payload file not found: {payload_path}", file=sys.stderr)
-        sys.exit(1)
 
-    payload = json.loads(payload_path.read_text(encoding="utf-8"))
-    cfg = load_config()
-    repo_root = Path(cfg["repo"])
+def run_payload(payload: dict, repo_root: Path | None = None) -> dict:
+    """Execute a migration from a structured JSON payload dict.
+
+    Core logic shared by the CLI subcommand and the HTTP API.
+    Returns the result dict {branch, commit_id, aux_branch, base_name, module}.
+    """
+    if repo_root is None:
+        cfg = load_config()
+        repo_root = Path(cfg["repo"])
 
     command = payload.get("command")
     if not command:
-        print("Payload missing required field: 'command'", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("Payload missing required field: 'command'")
 
     description = build_description(
         command,
@@ -185,11 +203,26 @@ def cmd_run_payload(args: argparse.Namespace) -> None:
     print(f"Running payload: command={command}, ticket={payload['ticket']}, description={description}")
 
     if command == "ren-data":
-        cmd_ren_data(ns)
+        return cmd_ren_data(ns)
     elif command == "rules":
-        cmd_rules(ns)
+        return cmd_rules(ns)
     else:
-        print(f"Unknown command in payload: {command!r}", file=sys.stderr)
+        raise ValueError(f"Unknown command in payload: {command!r}")
+
+
+def cmd_run_payload(args: argparse.Namespace) -> None:
+    """Execute a migration from a structured JSON payload (n8n integration)."""
+    payload_path = Path(args.payload)
+    if not payload_path.exists():
+        print(f"Payload file not found: {payload_path}", file=sys.stderr)
+        sys.exit(1)
+
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    try:
+        result = run_payload(payload)
+        print(json.dumps(result, indent=2))
+    except (ValueError, KeyError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
 

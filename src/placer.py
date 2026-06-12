@@ -112,8 +112,8 @@ def git_add_commit_push(
     ticket_id: str,
     description: str,
     branch_name: str,
-) -> None:
-    """Stage *files*, commit, and push *branch_name* to origin.
+) -> str:
+    """Stage *files*, commit, push *branch_name* to origin, and return the commit hash.
 
     Enforces exactly 2 files per commit (one .xlsx + one .java with matching names).
     """
@@ -129,7 +129,13 @@ def git_add_commit_push(
         ["git", "-C", str(abs_root), "push", "--set-upstream", "origin", branch_name],
         check=True,
     )
-    print(f"  pushed '{branch_name}' to origin")
+    result = subprocess.run(
+        ["git", "-C", str(abs_root), "rev-parse", "HEAD"],
+        check=True, capture_output=True, text=True,
+    )
+    commit_id = result.stdout.strip()
+    print(f"  pushed '{branch_name}' to origin (commit {commit_id[:8]})")
+    return commit_id
 
 
 def create_auxiliary_branch(

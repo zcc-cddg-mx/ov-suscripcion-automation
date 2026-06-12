@@ -28,9 +28,8 @@ dependencies:
       # Excel read/write — Flyway migration file generation
       - openpyxl==3.1.5
 
+      # HTTP API listener (architecture v3 — n8n calls Code Agent via HTTP)
+      - flask==3.1.1
+
       # Testing
       - pytest==9.0.3
-
-      # Upcoming: Azure DevOps PR integration (uncomment when PAT is available)
-      # - azure-devops
-      # - msrest
