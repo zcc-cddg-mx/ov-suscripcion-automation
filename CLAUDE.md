@@ -40,27 +40,33 @@ Copy `config.json.example` to `config.json` and fill in your values (file is git
 
 ```json
 {
-  "repo": "../ov-arizona-backend-ecuador",
-  "azure_pat": "YOUR_PAT_HERE"
+  "repo": "../ov-arizona-backend-ecuador"
 }
 ```
 
-`run-payload` reads `repo` automatically. `azure_pat` will be used by `open_pull_request()` (pending implementation) to open PRs in Azure DevOps after the push.
+`run-payload` reads `repo` automatically. No `azure_pat` needed — PR creation is handled by n8n (architecture v3).
 
-- Azure org: `ZurichInsurance-EC` — fixed in code
-- Azure project: `Oficina-Virtual-ZEC` — fixed in code
 - PR target branch: `developer` — fixed in code (`_PR_TARGET_BRANCH` in `src/placer.py`)
 - Promotion `developer` → `main` (production): separate manual process, outside this agent's scope
 
 ## What this tool does
 
-This is the **Code Agent** (Step 4) of a larger end-to-end orchestration pipeline:
+This is the **Code Agent** (Step 4) of a larger end-to-end orchestration pipeline (architecture v3):
 
 ```
-Jira → n8n → Classifier+Enricher Agent → Code Agent → Azure Repos (Branch+PR) → n8n (Jira "In Review") → QA Agent (validates PR) → PR Approved/Rejected
+Jira → n8n → Enricher Agent (within n8n) → Code Agent (HTTP API container)
+  → push + JSON response → n8n (creates PR via Azure CLI) → Azure DevOps pipeline (DEV deploy)
+  → n8n → QA Agent (validates endpoints + data) → n8n updates Jira
 ```
 
-See `architecture/agent_architecture.md` for the full picture. Key design point: **QA runs after the PR is created**, validating the actual diff — not before the Code Agent.
+See `architecture/agent_architecture.md` for the full picture.
+
+**Architecture v3 key changes:**
+- Code Agent is a **containerized HTTP API** (SERVICIOSIAS), not a local CLI
+- Code Agent **does NOT create PRs** — responds with `{status, branch, commit_id, build_status}` to n8n
+- n8n creates the PR via Azure CLI/API using the branch name from the response
+- Enricher Agent is now embedded within n8n (not a separate container)
+- **Build step**: `javac` verification inside the container — detects compile errors before push; does **not** generate JARs (full build is Azure DevOps pipeline responsibility)
 
 Automates Flyway migration requests for OV subscriptions. Each migration requires exactly two files with matching names — one `.xlsx` (data) and one `.java` (empty class that inherits `LoadFromFileMigrationTask`). The tool generates both and places them in the correct paths of the `ov-arizona-backend-ecuador` repo.
 
@@ -131,7 +137,8 @@ feature/{ticket}_{suffix}              ← cut from origin/developer, 2 files, p
 {base_name}_developer_auxiliar         ← cut from origin/developer, same 2 files
                                           copied via git show (no merge, no conflicts)
 
-Both → PR → developer  (integration/QA — this agent's scope)
+Code Agent responds {branch, commit_id, ...} → n8n
+n8n creates PR for each branch → developer  (integration/QA)
 developer → PR → main  (production — separate manual process)
 ```
 The auxiliary branch is the safe PR candidate: starts clean from `developer` and
@@ -139,10 +146,13 @@ receives exactly the 2 migration files extracted with `git show <feature>:<path>
 
 Ticket hyphens are replaced with underscores in file/class names (`ZNRX-67108` → `ZNRX_67108`); original ticket is kept in the commit message for Jira traceability.
 
-## Upcoming: Azure DevOps PR
+## Pending implementations (architecture v3)
 
-Next step after push: `open_pull_request()` in `src/placer.py` using the `azure-devops` Python SDK.  
-Requires `pip install azure-devops` in the conda env and `"azure_pat"` in `config.json`.
+1. **HTTP API listener** — Flask/FastAPI endpoint to receive n8n requests (replaces CLI-only mode)
+2. **JSON response contract** — after push, return `{status, branch, commit_id, repo, build_status, summary}` to n8n
+3. **Build step (javac verification)** — compile Java class inside container to catch errors before push; does NOT generate JARs
+
+PR creation moved to n8n (Azure CLI/API) — `open_pull_request()` will NOT be implemented here.
 
 ## Tests
 

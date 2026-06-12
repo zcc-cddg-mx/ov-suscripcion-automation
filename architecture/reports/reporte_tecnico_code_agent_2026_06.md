@@ -9,41 +9,51 @@
 
 ## 1. Contexto y rol del agente
 
-Este repositorio implementa el **Step 4 (Code Agent)** del pipeline de orquestación end-to-end de OV Suscripciones:
+Este repositorio implementa el **Step 4 (Code Agent)** del pipeline de orquestación end-to-end de OV Suscripciones (arquitectura v3):
 
 ```
 Jira (webhook)
-  → n8n (normalización)
-  → Classifier + Enricher Agent  — tipo de ticket + requisito técnico estructurado
-  → Code Agent ◀ este repo
-  → Azure Repos (Branch + PR)
-  → n8n (actualiza Jira → "En revisión" + link PR)
-  → QA Agent  — valida el diff del PR en Azure Repos
-  → PR Aprobado / Observaciones → Jira + comentarios PR
+  → n8n — normaliza ticket + genera contexto
+  → Enricher Agent (dentro de n8n) — requisito técnico estructurado (LLM call)
+  → Code Agent ◀ este repo (container en SERVICIOSIAS, endpoint HTTP público)
+       recibe JSON → crea branch → genera archivos → compila (verificación) → push
+       → responde JSON a n8n {status, branch, commit_id, build_status, summary}
+  → n8n — crea PR (Azure CLI / API) → monitorea PR y pipeline
+  → Azure DevOps — ejecuta pipeline → deploy a DEV (red interna)
+  → n8n — dispara validación
+  → QA Agent (container en SERVICIOSIAS) — valida endpoints + datos → aprobado/rechazado
+  → n8n — actualiza Jira (link PR + resultado QA) → cierra ticket si aprobado
 ```
 
-**Cambio arquitectónico v2:** Classifier y Enricher se fusionaron en un solo agente. El QA Agent se desplazó al final del pipeline — valida el código real del PR, no el requisito abstracto. El Code Agent recibe el requisito ya enriquecido y actúa sin esperar validación previa.
+**Cambios arquitectónicos v3 (vs. v2):**
+- Code Agent es ahora un **servicio HTTP containerizado** en SERVICIOSIAS — ya no es un script local
+- Code Agent **ya NO abre PRs** — entrega `{branch, commit_id}` a n8n, que crea el PR via Azure CLI/API
+- Enricher Agent está **embebido en n8n** — ya no es un container separado
+- **Build step de verificación** dentro del Code Agent: `javac` detecta errores de sintaxis/clase antes del push — **no genera JARs** (el build completo para producción es responsabilidad del pipeline de Azure DevOps)
+- QA Agent valida **endpoints y datos post-deploy** (no solo el diff del PR)
+- Red pública (agentes + n8n) separada de red interna (Azure DevOps + Docker + servidores DEV)
 
-El agente recibe un **JSON payload estructurado** desde n8n (construido por los agentes anteriores) y produce:
+El agente recibe un **JSON payload estructurado** via HTTP (desde n8n) y produce:
 
 1. Dos archivos Flyway con nombre canónico (`V{ts}__{TICKET}_{description}.xlsx` + `.java`)
 2. Una rama `feature/...` en `ov-arizona-backend-ecuador` creada desde `origin/developer`
 3. Un commit con exactamente esos 2 archivos
-4. Push de la rama a Azure Repos (`origin`)
-
-Lo que queda pendiente: abrir el Pull Request (`feature/...` → `developer`) y notificar a n8n con el link del PR.
+4. Verificación de compilación Java (`javac`)
+5. Push de la rama a Azure Repos
+6. Respuesta JSON a n8n con `{status, branch, commit_id, build_status, summary}`
 
 ### Estrategia de ramas y alcance del agente
 
 ```
-feature/{ticket}_{suffix}
-        │
-        └── PR ──► developer   (integración / QA) ◄── alcance del Code Agent
-                       │
-                       └── PR ──► main            (producción — proceso manual)
+Code Agent: genera branch + push → responde a n8n
+                │
+                ▼
+       n8n: crea PR ──► developer   (integración / QA)
+                               │
+                               └── PR ──► main   (producción — proceso manual)
 ```
 
-El agente **opera exclusivamente sobre `developer`**. La promoción a `main` (producción) es un proceso manual a cargo del equipo de release, fuera del alcance de este agente.
+El agente **opera exclusivamente sobre `developer`**. La apertura del PR, el monitoreo del pipeline y la promoción a `main` están fuera del alcance del Code Agent.
 
 ---
 
@@ -129,18 +139,22 @@ V{YYYY_MM_DD_HH_MM_SS}__{TICKET_SANITIZADO}_{Description}
 
 ## 3. Integración con n8n y Azure DevOps
 
-### 3.1 Estado actual de la integración
+### 3.1 Estado actual de la integración (arquitectura v3)
 
-| Paso del pipeline | Estado |
-|---|---|
-| Recibir JSON payload desde n8n | **Implementado** — subcomando `run-payload` |
-| Derivar `description` automáticamente | **Implementado** — `src/description.py` |
-| Generar archivos Flyway (xlsx + java) | **Implementado y testeado** |
-| Crear feature branch desde `origin/developer` + commit + push | **Implementado** — `placer.create_feature_branch()` + `git_add_commit_push()` |
-| Commit + push a Azure Repos | **Implementado** — `placer.git_add_commit_push()` |
-| Abrir Pull Request en Azure DevOps | **Pendiente** |
-| Devolver PR link a n8n | **Pendiente** |
-| n8n actualiza Jira con PR link + estado "En revisión" | Depende del paso anterior |
+| Paso del pipeline | Responsable | Estado |
+|---|---|---|
+| Recibir JSON payload desde n8n | Code Agent | **Implementado** — subcomando `run-payload` |
+| Derivar `description` automáticamente | Code Agent | **Implementado** — `src/description.py` |
+| Generar archivos Flyway (xlsx + java) | Code Agent | **Implementado y testeado** |
+| Crear feature branch desde `origin/developer` + commit + push | Code Agent | **Implementado** — `placer.create_feature_branch()` + `git_add_commit_push()` |
+| Crear rama auxiliar `{base_name}_developer_auxiliar` + push | Code Agent | **Implementado** — `placer.create_auxiliary_branch()` (git show, sin merge) |
+| **Build step — verificación de compilación Java** | **Code Agent** | **Pendiente** — `javac` en container; verificación pre-push, no genera JARs |
+| **Exponer endpoint HTTP** (recibir requests de n8n) | **Code Agent** | **Pendiente** — Flask/FastAPI listener |
+| **Responder JSON a n8n** `{status, branch, commit_id, build_status, summary}` | **Code Agent** | **Pendiente** |
+| Crear Pull Request en Azure DevOps | **n8n** | Fuera del agente — n8n usa Azure CLI/API con el `branch` recibido |
+| Monitorear PR y pipeline → disparar QA | **n8n** | Fuera del agente |
+| Build completo → generación de JARs → deploy a DEV | Azure DevOps Pipeline | Fuera del agente |
+| PR `developer` → `main` (producción) | Release manual | Fuera del agente |
 
 ### 3.2 Contrato del payload JSON (n8n → Code Agent)
 
@@ -172,49 +186,45 @@ El Enricher/QA Agent construye este payload antes de invocar al Code Agent.
 Campos que **no van en el payload** (configuración local del servidor):
 - `repo` — path al repo destino → en `config.json`
 - `description` — auto-derivado en el agente
-- `azure_pat` — PAT de Azure → en `config.json` (pendiente de uso)
 
 ### 3.3 Configuración local del servidor (`config.json`)
 
 ```json
 {
-  "repo": "../ov-arizona-backend-ecuador",
-  "azure_pat": "PAT_GENERADO_EN_AZURE_DEVOPS"
+  "repo": "../ov-arizona-backend-ecuador"
 }
 ```
 
-Este archivo está en `.gitignore`. `config.json.example` está commiteado como referencia. El PAT se necesita para el paso pendiente de apertura del PR.
+Este archivo está en `.gitignore`. `config.json.example` está commiteado como referencia. El `azure_pat` ya no es necesario en este agente — el PR lo crea n8n con sus propias credenciales.
 
-### 3.4 Pull Request — diseño pendiente
+### 3.4 Contrato de respuesta (Code Agent → n8n)
 
-La función `open_pull_request()` a implementar en `src/placer.py` usará el SDK Python `azure-devops`:
+Tras el push exitoso, el agente responde a n8n:
 
-```python
-# Dependencia a instalar en el conda env:
-# pip install azure-devops
-
-from azure.devops.connection import Connection
-from msrest.authentication import BasicAuthentication
-
-def open_pull_request(repo_root, branch_name, ticket_id, description, pat):
-    creds = BasicAuthentication("", pat)
-    connection = Connection(
-        base_url="https://dev.azure.com/ZurichInsurance-EC", creds=creds
-    )
-    git_client = connection.clients.get_git_client()
-    pr = {
-        "source_ref_name": f"refs/heads/{branch_name}",
-        "target_ref_name": "refs/heads/developer",
-        "title": f"[{ticket_id}] {description}",
-        "description": f"Migración Flyway generada automáticamente por Code Agent.",
-    }
-    result = git_client.create_pull_request(
-        pr, "ov-arizona-backend-ecuador", project="Oficina-Virtual-ZEC"
-    )
-    return result.url  # URL del PR → se devuelve a n8n
+```json
+{
+  "status": "success",
+  "branch": "feature/ZNRX_67108_renov_agosto",
+  "commit_id": "abc123def456",
+  "repo": "ov-arizona-backend-ecuador",
+  "build_status": "success",
+  "summary": "Code generated and pushed successfully"
+}
 ```
 
-El URL del PR resultante debe devolverse como respuesta del agente para que n8n lo escriba en el ticket Jira.
+n8n usa `branch` para invocar `az repos pr create --source-branch feature/... --target-branch developer`.
+
+En caso de error:
+
+```json
+{
+  "status": "error",
+  "error": "Validation failed: 2 error(s) in input file:\n  • Row 3: Empty chassis number",
+  "build_status": null
+}
+```
+
+**`open_pull_request()` en `src/placer.py` no se implementará** — el PR es responsabilidad de n8n.
 
 ---
 

@@ -2,23 +2,32 @@
 
 ## Rol en el pipeline global
 
-Este agente es el **Step 4** del pipeline de orquestación end-to-end:
+Este agente es el **Step 4** del pipeline de orquestación end-to-end (arquitectura v3):
 
 ```
 Jira (webhook)
-  → n8n (normalización)
-  → Classifier + Enricher Agent  — clasifica el ticket y construye requisito técnico estructurado
-  → Code Agent ◀ este repo
-  → Azure Repos (Branch + PR)
-  → n8n (actualiza Jira → "En revisión" + link PR)
-  → QA Agent  — valida el PR (diff real, no el requisito abstracto)
-  → PR Aprobado / Observaciones → Jira + comentarios en PR
+  → n8n — normaliza ticket + genera contexto
+  → Enricher Agent (dentro de n8n) — requisito técnico estructurado (LLM call)
+  → Code Agent ◀ este repo (container en SERVICIOSIAS, endpoint HTTP público)
+       recibe JSON → crea branch → genera archivos → compila (verificación) → push
+       → responde JSON a n8n {status, branch, commit_id, build_status, summary}
+  → n8n — crea PR (Azure CLI / API) → monitorea PR y pipeline
+  → Azure DevOps — ejecuta pipeline → deploy a DEV (red interna)
+  → n8n — dispara validación
+  → QA Agent (container en SERVICIOSIAS) — valida endpoints + datos → responde aprobado/rechazado
+  → n8n — actualiza Jira (link PR + resultado QA) → cierra ticket si aprobado
 ```
 
-**Cambio arquitectónico clave:** el QA Agent actúa *después* del PR, no antes del Code Agent. Valida el diff real en Azure Repos. El Code Agent no espera validación previa — recibe el requisito enriquecido y actúa directamente.
+**Cambios arquitectónicos clave (v3):**
+- Code Agent es ahora un **servicio HTTP containerizado** — recibe requests de n8n vía endpoint público
+- Code Agent **ya NO abre PRs** — envía respuesta JSON a n8n, que se encarga del PR via Azure CLI/API
+- Enricher Agent está **embebido en n8n** (LLM call directo) — ya no es un container separado
+- **Build step** dentro del Code Agent: compilación Java de **verificación** (detecta errores de sintaxis/clase antes del push); **no genera JARs** — el build completo para producción es responsabilidad del pipeline de Azure DevOps
+- QA Agent valida **endpoints y datos post-deploy** (no solo diff del PR)
+- **Separación de redes:** agentes en red pública; Azure DevOps, Docker runtime y servidores en red interna
 
-**Input:** JSON payload estructurado (desde n8n) o CLI manual — ticket ID, tipo de migración, archivo de negocio, año/mes o entity. El campo `description` se auto-deriva; el path al repo viene de `config.json` local.  
-**Output:** dos archivos Flyway (`.xlsx` + `.java`) con nombre `V{YYYY_MM_DD_HH_MM_SS}__{TICKET}_{Description}`, colocados en el repo destino como PR hacia `developer`.
+**Input:** JSON payload estructurado vía HTTP (desde n8n) o CLI manual — ticket ID, tipo de migración, archivo de negocio, año/mes o entity. El campo `description` se auto-deriva; el path al repo viene de `config.json` local.  
+**Output:** respuesta JSON `{status, branch, commit_id, repo, build_status, summary}` — n8n usa `branch` para crear el PR.
 
 ---
 
@@ -165,9 +174,11 @@ Cada migración produce exactamente dos archivos con el mismo nombre base:
 
 ---
 
-## Payload JSON (contrato con n8n)
+## Contratos JSON (n8n ↔ Code Agent)
 
-El subcomando `run-payload` recibe un archivo JSON que el Enricher/QA Agent construye a partir del ticket Jira. El `repo` no viaja en el payload — se lee de `config.json` local del servidor.
+### Request (n8n → Code Agent)
+
+El subcomando `run-payload` recibe un archivo JSON que el Enricher Agent (embebido en n8n) construye a partir del ticket Jira. El `repo` no viaja en el payload — se lee de `config.json` local del servidor.
 
 **Tipo 1 — ren-data:**
 ```json
@@ -201,6 +212,32 @@ El subcomando `run-payload` recibe un archivo JSON que el Enricher/QA Agent cons
 { "repo": "../ov-arizona-backend-ecuador" }
 ```
 
+### Response (Code Agent → n8n)
+
+Tras el push, el agente devuelve a n8n:
+
+```json
+{
+  "status": "success",
+  "branch": "feature/ZNRX_67108_renov_agosto",
+  "commit_id": "abc123def456",
+  "repo": "ov-arizona-backend-ecuador",
+  "build_status": "success",
+  "summary": "Code generated and pushed successfully"
+}
+```
+
+n8n usa `branch` para crear el PR via Azure CLI/API. El agente **no crea el PR** — ese paso es responsabilidad de n8n.
+
+En caso de error:
+```json
+{
+  "status": "error",
+  "error": "Validation failed: 2 error(s) in input file:\n  • Row 3: Empty chassis number\n  • Row 5: Duplicate chassis",
+  "build_status": null
+}
+```
+
 ---
 
 ## Estrategia de ramas
@@ -212,24 +249,26 @@ feature/{ticket}_{suffix}
   └── cortada de origin/developer
   └── 2 archivos (xlsx + java) + commit + push
         │
-        ├──── PR ──► developer  ◄── alcance del agente
-        │
+        └── Code Agent responde {branch, commit_id, ...} → n8n
+                │
+                └── n8n crea PR ──► developer  (Azure CLI/API)
+
 {base_name}_developer_auxiliar
   └── cortada limpia de origin/developer
   └── mismos 2 archivos copiados con 'git show <feature>:<path>'
       (sin merge — cero conflictos posibles)
   └── commit + push a origin
         │
-        └──── PR ──► developer  ◄── rama candidata al PR
+        └── n8n crea PR ──► developer  (rama candidata limpia)
 
-developer  ──► PR ──► main  (producción — proceso manual)
+developer  ──► PR ──► main  (producción — proceso manual, fuera del agente)
 ```
 
 **Por qué `git show` en lugar de merge:** el merge podría traer cambios de `developer` no relacionados con la migración. Con `git show` la rama auxiliar contiene exactamente `developer` + los 2 archivos nuevos — sin sorpresas.
 
 ---
 
-## Estado de integración con el pipeline
+## Estado de integración con el pipeline (v3)
 
 | Paso | Scope | Estado |
 |---|---|---|
@@ -239,6 +278,9 @@ developer  ──► PR ──► main  (producción — proceso manual)
 | Crear feature branch desde `origin/developer` + commit + push | Agente | **Implementado** — `placer.create_feature_branch` + `git_add_commit_push` |
 | Crear rama auxiliar `{base_name}_developer_auxiliar` + push | Agente | **Implementado** — `placer.create_auxiliary_branch` (git show, sin merge) |
 | Validar par exacto (1 xlsx + 1 java, mismo nombre, clase coincide) | Agente | **Implementado** — `_validate_migration_pair` en `placer.py` |
-| Abrir PR: `{base_name}_developer_auxiliar` → `developer` | Agente | **Pendiente** — SDK `azure-devops` (pip), PAT en `config.json` |
-| Notificar a n8n (PR link) | Agente | **Pendiente** |
+| **Build step — verificación de compilación Java** | **Agente** | **Pendiente** — `javac` dentro del container; detecta errores antes del push |
+| **Exponer endpoint HTTP** (recibir requests de n8n) | **Agente** | **Pendiente** — Flask/FastAPI listener |
+| **Responder JSON a n8n** `{status, branch, commit_id, build_status, summary}` | **Agente** | **Pendiente** — contrato de respuesta v3 |
+| Abrir PR en Azure DevOps | **n8n** | Fuera del alcance del agente (n8n usa Azure CLI/API) |
+| Monitorear pipeline + disparar QA | **n8n** | Fuera del alcance del agente |
 | PR `developer` → `main` (producción) | Release manual | Fuera del alcance del agente |

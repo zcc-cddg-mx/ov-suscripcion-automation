@@ -1,186 +1,381 @@
-A continuación tienes una **traducción estructurada y explicada del diagrama**, lista para dársela a Claude como contexto de arquitectura. La redacté en inglés técnico (más adecuado para modelos como Claude) e incorporé explícitamente el rol actual del **Agente Código** que mencionaste.
-
-***
-
-# 🧠 End-to-End Agent Orchestration Architecture (Jira → Code → Deployment)
+# 🧠 Secure End-to-End Agent Orchestration Architecture (Final Version)
 
 ## 1. High-Level Overview
 
-This architecture defines an **end-to-end automated workflow** that starts when a user creates a new Jira ticket and finishes with a **code change and deployment-ready artifact**.
+This architecture defines a **secure, container-based, event-driven automation pipeline**, where a Jira ticket is transformed into a **code change, validated and deployed automatically**.
 
-The orchestration is based on a sequence of specialized agents, each responsible for a specific stage of the lifecycle:
+### 🔑 Key Principles
 
-1. Ticket ingestion and normalization
-2. Ticket classification
-3. Technical requirement enrichment
-4. QA validation
-5. Code generation and repository update
-
-***
-
-## 2. Actors / Components
-
-* **Jira**: Source of incoming requests (issues, changes, incidents)
-* **n8n Robot (Orchestrator)**: Workflow engine that coordinates the agents
-* **Classifier Agent**
-* **Enricher Agent**
-* **QA Agent**
-* **Code Agent (currently under development)**
-* **Azure Repos**: Code repository for version control
+* **Separation of concerns**
+  * Code Agent → code generation only
+  * n8n → orchestration + DevOps control
+* **Containerized execution**
+* **Network isolation (public vs internal)**
+* **PR-driven validation and deployment**
+* **n8n as central control plane**
 
 ***
 
-## 3. End-to-End Flow Description
+## 2. Network Architecture
 
-### Step 1 — Ticket Creation (Trigger)
+### 🌐 Public Network
 
-* A new Jira ticket is created.
-* Jira emits a **webhook event**.
-* The webhook triggers the **n8n Robot**.
+Components exposed externally:
 
-### Step 2 — Ticket Normalization (n8n)
+* Jira
+* n8n Robot
+* Code Agent (container endpoint)
+* QA Agent (container endpoint)
 
-* The orchestration layer:
-  * Extracts ticket data (title, description, metadata)
-  * Normalizes the structure into a consistent format
-* It then sends the **clean ticket context** to the next agent.
+**Purpose:**
 
-***
-
-### Step 3 — Classification (Classifier Agent)
-
-* The Classifier Agent:
-  * Analyzes the ticket using **Claude (ReAct pattern)**
-  * Determines the **type of request**, e.g.:
-    * Incident
-    * Infra
-    * Requirement
-    * Support
-
-**Output:**
-
-* Ticket enriched with a **classification label**
-* Structured semantic understanding of the request
+* Event ingestion
+* Orchestration
+* Controlled agent triggering (via HTTP APIs)
 
 ***
 
-### Step 4 — Technical Enrichment (Enricher Agent)
+### 🔒 Internal Network
 
-* Takes the classified ticket and:
-  * Expands it into a **structured technical requirement**
-  * Adds:
-    * Functional expectations
-    * Technical details
-    * Possible constraints
-    * Implementation hints (if applicable)
+* Application servers (DEV environment)
+* Docker runtime services
+* Azure DevOps deployment targets
 
-**Output:**
+**Purpose:**
 
-* Fully **structured technical requirement**
-* Better suited for downstream automation (especially code generation)
+* Secure execution
+* Deployment
+* Runtime validation
 
 ***
 
-### Step 5 — QA Validation (QA Agent)
+## 3. Core Components
 
-* The QA Agent evaluates:
-  * Completeness of the requirement
-  * Consistency and clarity
-  * Testability
-* Produces one of two outcomes:
-  * ✅ **Validated**
-  * ❌ **Rejected with reason**
+### 3.1 Jira
 
-**Output:**
-
-* Validated requirement OR rejection feedback
+* Entry point for requests
+* Uses predefined templates
+* Emits **webhook on ticket creation**
 
 ***
 
-### Step 6 — Code Generation (Code Agent) 🚧 *Current Focus*
+### 3.2 n8n Robot (Central Orchestrator)
 
-> You are currently working on this agent.
+Runs in public network.
 
-The Code Agent is responsible for:
+#### Responsibilities:
 
-* Receiving a **validated technical requirement**
-* Generating code using **Claude Code capabilities**
-
-### Current Scope (based on your note):
-
-* Python-based agent capable of:
-  * Reading and writing **Excel files**
-  * Reading and modifying **Java code**
-* Automates low-complexity change requests
-
-### Responsibilities:
-
-* Generate source code changes
-* Ensure consistency with requirement
-* Prepare changes for version control
+* Normalize Jira tickets
+* Execute orchestration logic
+* Call agent APIs
+* Handle responses
+* Execute Azure CLI commands
+* Manage workflow state
+* Update Jira
 
 ***
 
-### Step 7 — Repository Integration (Azure Repos)
+### 3.3 Enricher Agent (within n8n)
 
-* The Code Agent:
-  * Creates a **new branch**
-  * Commits generated changes
-  * Opens a **Pull Request (PR)**
+* Runs as part of n8n workflow
+* Uses LLM (Claude)
 
-***
+#### Responsibilities:
 
-### Step 8 — Jira Update (Feedback Loop)
+* Interpret ticket
+* Generate structured technical requirement
 
-* The orchestrator (n8n Robot):
-  * Updates the Jira ticket with:
-    * PR link
-  * Changes status to:
-    * **"En revisión" (In Review)**
+#### Output example:
 
-***
-
-## 4. Sequence Summary
-
-```text
-Jira (Webhook)
-  ↓
-n8n (Normalize + Orchestrate)
-  ↓
-Classifier Agent (Claude - ReAct)
-  ↓
-Enricher Agent (Structured Requirement)
-  ↓
-QA Agent (Validation)
-  ↓
-Code Agent (Generate Code, Python + Java + Excel)
-  ↓
-Azure Repos (Branch + PR)
-  ↓
-n8n (Update Jira Ticket)
+```json
+{
+  "type": "request",
+  "technical_requirement": {
+    "summary": "...",
+    "steps": [...],
+    "files_expected": [...],
+    "constraints": [...]
+  }
+}
 ```
 
 ***
 
-## 5. Key Design Principles
+## 4. Code Agent (Containerized Service) 🚧
 
-* ✅ **Agent specialization**: Each agent solves one problem well
-* ✅ **LLM-driven reasoning (Claude)** for classification and generation
-* ✅ **Orchestration-first design (n8n)**
-* ✅ **Structured outputs between agents** (critical for automation)
-* ✅ **Incremental automation** (starting with low complexity tickets)
+### 📦 Deployment
+
+* Containerized service
+* Hosted in SERVICIOSIAS (UAT farm)
+* Exposed via **controlled public endpoint**
+
+***
+
+### ⚙️ Responsibilities
+
+The Code Agent is a **pure execution engine**:
+
+#### 1. Listener (API)
+
+* Receives request from n8n
+* Implemented in Python
 
 ***
 
-## 6. Notes for Claude (Important Context)
+#### 2. Git Operations
 
-* The system is **already orchestrated by n8n**
-* The pipeline is **sequential and deterministic**
-* The **Code Agent is under active development**, focused on:
-  * Python scripting
-  * Excel manipulation
-  * Java code modification
-* Current use cases are intentionally **low complexity**
-* The goal is **progressive automation maturity**
+* Create feature branch → `git + shell`
 
 ***
+
+#### 3. Code Generation
+
+* Modify / generate:
+  * Java code
+  * Python scripts
+  * Excel files
+
+***
+
+#### 4. Build Step
+
+* Compile project → `Java`
+
+***
+
+#### 5. Push Changes
+
+* Push branch to Azure Repos → `git + shell`
+
+***
+
+#### 6. ✅ Notify n8n (NEW CRITICAL STEP)
+
+The Code Agent **DOES NOT create PRs anymore**
+
+Instead, it sends a response:
+
+```json
+{
+  "status": "success",
+  "branch": "feature/auto-change-123",
+  "commit_id": "abc123",
+  "repo": "project-repo",
+  "build_status": "success",
+  "summary": "Code generated and pushed successfully"
+}
+```
+
+***
+
+## 5. n8n as DevOps Controller (NEW ROLE)
+
+After receiving Code Agent response:
+
+### Responsibilities:
+
+#### 1. Create Pull Request
+
+* Uses:
+  * Azure CLI OR Azure DevOps API
+* Inputs:
+  * Branch name
+  * Target branch
+
+***
+
+#### 2. Monitor PR & Pipeline
+
+Tracks:
+
+* Build status
+* Deployment status
+
+***
+
+#### 3. Control Flow Decisions
+
+* If success → trigger QA
+* If failure → log + update Jira
+
+***
+
+## 6. Azure DevOps Pipeline
+
+Triggered after PR creation.
+
+### Responsibilities:
+
+* Build
+* Deploy to DEV server
+
+***
+
+### Environment:
+
+* Internal network
+* Docker-based services
+
+***
+
+## 7. QA Agent (Containerized Service)
+
+### 📦 Deployment
+
+* Container in SERVICIOSIAS
+* Public endpoint (controlled access)
+
+***
+
+### ⚙️ Responsibilities
+
+#### 1. Listener (API)
+
+* Receives validation request from n8n
+
+***
+
+#### 2. Endpoint Validation
+
+* Uses:
+  * Shell scripts
+  * Python
+* Validates:
+  * APIs
+  * Services availability
+
+***
+
+#### 3. Data Validation
+
+* Validates correctness of outputs
+
+***
+
+### Output:
+
+```json
+{
+  "status": "approved | rejected",
+  "observations": [...]
+}
+```
+
+***
+
+## 8. Full End-to-End Flow
+
+```text
+1. Jira
+   → New ticket created (webhook)
+
+2. n8n
+   → Normalize ticket
+   → Generate context
+
+3. Enricher Agent (n8n)
+   → Build structured technical requirement
+
+4. Code Agent (container)
+   → Receive request
+   → Create branch
+   → Modify code (Python / Java / Excel)
+   → Compile
+   → Push changes (Azure Repos)
+   → Send response to n8n
+
+5. n8n
+   → Create PR (Azure CLI / API)
+   → Monitor PR and pipeline
+
+6. Azure DevOps
+   → Execute pipeline
+   → Deploy to DEV environment (internal network)
+
+7. n8n
+   → Trigger validation
+
+8. QA Agent (container)
+   → Validate endpoints and data
+   → Return result
+
+9. n8n
+   → Update Jira:
+       - PR link
+       - QA result
+   → Close ticket (if approved)
+```
+
+***
+
+## 9. Key Architectural Advantages
+
+### ✅ 1. Strong Separation of Responsibilities
+
+* Code Agent = execution engine
+* n8n = orchestration + DevOps brain
+
+***
+
+### ✅ 2. Security Improvements
+
+* Code Agent does NOT manage PRs
+* Reduced permissions surface
+* Clear boundaries between services
+
+***
+
+### ✅ 3. Centralized Control Plane
+
+* n8n controls:
+  * PR lifecycle
+  * Pipeline monitoring
+  * QA triggering
+
+***
+
+### ✅ 4. Scalability
+
+* Agents = stateless containers
+* Can scale independently
+
+***
+
+### ✅ 5. Extensibility
+
+Future additions become easy:
+
+* Security scans
+* Approval gates
+* Multi-env deployments
+* Additional agents
+
+***
+
+## 10. Critical Design Contracts (Implicit but Key)
+
+This architecture **depends heavily on contracts**:
+
+### Between n8n ↔ Code Agent
+
+* Structured requirement JSON
+* Deterministic response schema
+
+### Between n8n ↔ QA Agent
+
+* PR + endpoint context
+* Validation schema
+
+***
+
+## 🔥 Suggested Next Step (High Impact)
+
+Ahora que la arquitectura está sólida, el siguiente paso más valioso sería:
+
+👉 Definir formalmente:
+
+### 1. API Contract del Code Agent (request/response + errores)
+
+### 2. Error handling strategy (retry, fallback, idempotency)
+
+### 3. Execution model (sync vs async con callbacks/webhooks)
