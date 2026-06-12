@@ -6,6 +6,9 @@
 #   GIT_PAT=<pat-azure-repos> \
 #   ./start-agent.sh
 
+GRADLE_DEV_PASSWORD="AZURE_PAT_PLACEHOLDER"
+GIT_PAT="AZURE_PAT_PLACEHOLDER"
+
 set -euo pipefail
 
 docker run -d \
@@ -20,6 +23,10 @@ docker run -d \
   -v /data/gradle-cache:/root/.gradle/caches \
   ov-code-agent:latest
 
-echo "Levantando..."
-sleep 3
+echo "Levantando (warm-up Gradle en curso, puede tardar unos minutos)..."
+until curl -sf http://localhost:5000/health > /dev/null 2>&1; do
+    printf "."
+    sleep 5
+done
+echo ""
 curl -sf http://localhost:5000/health | python3 -m json.tool

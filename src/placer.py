@@ -72,6 +72,10 @@ def create_feature_branch(repo_root: Path, branch_name: str, base_branch: str = 
     """
     r = str(Path(repo_root).resolve())
     subprocess.run(["git", "-C", r, "fetch", "origin", base_branch], check=True)
+    # Stash any local modifications (e.g. build config files modified by local dev tooling)
+    # so checkout doesn't fail. Stash is intentionally not popped — those changes are
+    # local-only and should not be carried into the feature branch.
+    subprocess.run(["git", "-C", r, "stash"], check=True)
     subprocess.run(
         ["git", "-C", r, "checkout", "-b", branch_name, f"origin/{base_branch}"],
         check=True,

@@ -72,23 +72,37 @@ def verify(repo_root: Path, module: str) -> None:
         "PATH": f"{java_home}/bin:{os.environ.get('PATH', '/usr/local/bin:/usr/bin:/bin')}",
     }
 
-    result = subprocess.run(
-        [
-            "gradle",
-            f"{gradle_path}:compileJava",
-            "-x", "test",
-            "-Penv=dev",
-            "-PcustomerOverlay=ecuador",
-            "--quiet",
-        ],
+    cmd = [
+        "gradle",
+        f"{gradle_path}:compileJava",
+        "-x", "test",
+        "-Penv=dev",
+        "-PcustomerOverlay=ecuador",
+    ]
+
+    print(f"[build] gradle {gradle_path}:compileJava", flush=True)
+
+    proc = subprocess.Popen(
+        cmd,
         cwd=str(abs_repo),
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
         env=env,
     )
 
-    if result.returncode != 0:
-        output = (result.stdout + result.stderr).strip()
+    output_lines = []
+    for line in proc.stdout:
+        line = line.rstrip()
+        output_lines.append(line)
+        print(f"[gradle] {line}", flush=True)
+
+    proc.wait()
+
+    if proc.returncode != 0:
+        output = "\n".join(output_lines).strip()
         raise BuildCheckError(
             f"Compilation failed for module '{module}':\n{output}"
         )
+
+    print(f"[build] compilation OK — {module}", flush=True)

@@ -47,7 +47,7 @@ echo "[entrypoint] config.json → repo: ${REPO_PATH}"
 mkdir -p ~/.gradle
 
 cat > ~/.gradle/gradle.properties <<EOF
-org.gradle.daemon=false
+org.gradle.daemon=true
 org.gradle.parallel=true
 org.gradle.jvmargs=-Xmx2048m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
 org.gradle.workers.max=4
@@ -75,10 +75,13 @@ echo "[entrypoint] ~/.gradle/gradle.properties generated"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. Configure git credentials for Azure Repos (PAT-based HTTPS)
+# Azure Repos remotes use the org name (ZurichInsurance-EC) as the URL user,
+# not the personal username — both entries are written so git credential lookup
+# matches regardless of how the remote URL is configured.
 # ─────────────────────────────────────────────────────────────────────────────
 git config --global credential.helper store
-printf "https://%s:%s@dev.azure.com\n" "${GIT_USERNAME}" "${GIT_PAT}" \
-    >> ~/.git-credentials
+printf "https://ZurichInsurance-EC:%s@dev.azure.com\n" "${GIT_PAT}" >> ~/.git-credentials
+printf "https://%s:%s@dev.azure.com\n" "${GIT_USERNAME}" "${GIT_PAT}" >> ~/.git-credentials
 
 git config --global user.email "${GIT_USERNAME}@zurichinsurance.com"
 git config --global user.name  "${GIT_USERNAME}"
@@ -96,7 +99,23 @@ if [ ! -d "${REPO_PATH}/.git" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. Start application
+# 5. Gradle warm-up — compile both modules once to:
+#    a) download dependencies from Azure Artifacts into the cache volume
+#    b) start the Gradle daemon so subsequent compiles reuse the warm JVM
+#    Skipped if the repo is not mounted (dev/test without -v)
+# ─────────────────────────────────────────────────────────────────────────────
+if [ -d "${REPO_PATH}/.git" ]; then
+    echo "[entrypoint] warming up Gradle daemon (first run may take a few minutes)..."
+    for MODULE in ":ams-policy:flyway" ":ams-rule:flyway"; do
+        gradle "${MODULE}:compileJava" -x test -Penv=dev -PcustomerOverlay=ecuador --quiet \
+            -p "${REPO_PATH}" \
+            && echo "[entrypoint] warm-up OK — ${MODULE}" \
+            || echo "[entrypoint] WARN: warm-up failed for ${MODULE} (continuing)"
+    done
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Start application
 # ─────────────────────────────────────────────────────────────────────────────
 echo "[entrypoint] starting Code Agent on port ${PORT}"
 export PORT

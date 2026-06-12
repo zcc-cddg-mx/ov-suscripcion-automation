@@ -15,7 +15,7 @@ curl -sf -X POST http://localhost:5000/run \
   -H "Content-Type: application/json" \
   -d '{
     "command": "ren-data",
-    "ticket": "INC99999",
+    "ticket": "INC0000",
     "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
     "year": 2026,
     "month": 8,
@@ -29,7 +29,7 @@ curl -sf -X POST http://localhost:5000/run \
   -H "Content-Type: application/json" \
   -d '{
     "command": "ren-data",
-    "ticket": "INC99999",
+    "ticket": "INC0000",
     "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
     "year": 2026,
     "month": 8,
