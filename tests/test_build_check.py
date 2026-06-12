@@ -35,19 +35,19 @@ class TestVerify:
             verify(tmp_path, "ams-unknown")
 
     def test_gradle_success_returns_none(self, tmp_path: Path) -> None:
-        with patch("src.build_check._SETUP_SCRIPT", Path("/nonexistent")), \
+        with patch("src.build_check._LOCAL_SETUP_SCRIPT", Path("/nonexistent")), \
              patch("subprocess.run", return_value=_make_success()):
             result = verify(tmp_path, "ams-policy")
         assert result is None
 
     def test_gradle_failure_raises_build_check_error(self, tmp_path: Path) -> None:
-        with patch("src.build_check._SETUP_SCRIPT", Path("/nonexistent")), \
+        with patch("src.build_check._LOCAL_SETUP_SCRIPT", Path("/nonexistent")), \
              patch("subprocess.run", return_value=_make_failure("error: ';' expected")):
             with pytest.raises(BuildCheckError, match="Compilation failed"):
                 verify(tmp_path, "ams-policy")
 
     def test_error_message_contains_module_name(self, tmp_path: Path) -> None:
-        with patch("src.build_check._SETUP_SCRIPT", Path("/nonexistent")), \
+        with patch("src.build_check._LOCAL_SETUP_SCRIPT", Path("/nonexistent")), \
              patch("subprocess.run", return_value=_make_failure("some error")):
             with pytest.raises(BuildCheckError) as exc_info:
                 verify(tmp_path, "ams-rule")
@@ -58,7 +58,7 @@ class TestVerify:
         setup_fail.returncode = 1
         setup_fail.stderr = "setup failed"
 
-        with patch("src.build_check._SETUP_SCRIPT", tmp_path / "setup.sh") as mock_path, \
+        with patch("src.build_check._LOCAL_SETUP_SCRIPT", tmp_path / "setup.sh") as mock_path, \
              patch("subprocess.run", return_value=setup_fail):
             # Create dummy script file so exists() returns True
             (tmp_path / "setup.sh").write_text("exit 1")
@@ -72,7 +72,7 @@ class TestVerify:
             calls.append(cmd)
             return _make_success()
 
-        with patch("src.build_check._SETUP_SCRIPT", Path("/nonexistent")), \
+        with patch("src.build_check._LOCAL_SETUP_SCRIPT", Path("/nonexistent")), \
              patch("subprocess.run", side_effect=capture_run):
             verify(tmp_path, "ams-rule")
 
@@ -86,7 +86,7 @@ class TestVerify:
             calls.append(cmd)
             return _make_success()
 
-        with patch("src.build_check._SETUP_SCRIPT", Path("/nonexistent")), \
+        with patch("src.build_check._LOCAL_SETUP_SCRIPT", Path("/nonexistent")), \
              patch("subprocess.run", side_effect=capture_run):
             verify(tmp_path, "ams-policy")
 
