@@ -1,0 +1,95 @@
+# ov-agent-base — imagen base para ov-code-agent
+#
+# Contiene: Ubuntu 24.04 + Temurin 8 JDK + Gradle 6.8.3 + baked plugins
+#           + Python venv + dependencias pip + cache Maven del proyecto
+#
+# El cache Maven (~243M) se bake durante el build descargando las JARs del
+# proyecto desde Azure Artifacts. Requiere el PAT como --build-arg.
+# El PAT se borra en el mismo RUN en que se usa — no queda en ningún layer final.
+#
+# Build:
+#   GRADLE_DEV_PASSWORD=<pat> ./build-base.sh
+#
+# El repo backend se pasa como build-context secundario — no se copia en la imagen:
+#   docker buildx build --build-context repo=../ov-arizona-backend-ecuador ...
+
+FROM ams-ubuntu-lite:latest
+
+ARG GRADLE_USERNAME
+ARG GRADLE_DEV_PASSWORD
+
+# ─────────────────────────────────────────────────────────────────────────────
+# System dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+RUN apt-get -qq update && \
+    apt-get -qq -y install --no-install-recommends \
+        python3-pip \
+        python3-venv \
+        git \
+        unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gradle 6.8.3
+# ─────────────────────────────────────────────────────────────────────────────
+COPY gradle-6.8.3.zip /tmp/gradle.zip
+RUN unzip -q /tmp/gradle.zip -d /opt && \
+    ln -s /opt/gradle-6.8.3/bin/gradle /usr/local/bin/gradle && \
+    rm /tmp/gradle.zip
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gradle plugin JARs bakeados (no están en Azure Artifacts)
+# ─────────────────────────────────────────────────────────────────────────────
+COPY gradle-plugins/maven2 /opt/gradle-plugins/maven2
+COPY gradle-init.d/baked-plugins.gradle /root/.gradle/init.d/baked-plugins.gradle
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Python venv + dependencias
+# ─────────────────────────────────────────────────────────────────────────────
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt flask==3.1.1
+
+ENV JAVA_HOME=/usr/lib/jvm/temurin-8-jdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bake Maven cache
+#
+# El repo backend llega via --build-context repo=../ov-arizona-backend-ecuador
+# Solo se necesita para resolver dependencias — se borra al final del RUN.
+# gradle.properties (con el PAT) se crea y borra en el mismo RUN layer,
+# así no queda expuesto en la imagen final.
+# ─────────────────────────────────────────────────────────────────────────────
+COPY --from=repo . /tmp/repo
+
+RUN mkdir -p /root/.gradle && \
+    printf \
+"org.gradle.daemon=false\n\
+org.gradle.parallel=true\n\
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\n\
+org.gradle.caching=true\n\
+env=dev\n\
+customerOverlay=ecuador\n\
+zurich-library-devUsername=%s\n\
+zurich-library-devPassword=%s\n\
+zurich-library-devFeedUrl=https://pkgs.dev.azure.com/ZurichInsurance-EC/_packaging/zurich-library-dev/maven/v1\n\
+zurich-library-testUsername=%s\n\
+zurich-library-testPassword=%s\n\
+zurich-library-testFeedUrl=https://pkgs.dev.azure.com/ZurichInsurance-EC/_packaging/zurich-library-uat/maven/v1\n\
+zurich-library-prodUsername=%s\n\
+zurich-library-prodPassword=%s\n\
+zurich-library-prodFeedUrl=https://pkgs.dev.azure.com/ZurichInsurance-EC/_packaging/zurich-library-prod/maven/v1\n\
+systemProphttps.protocols=TLSv1.2,TLSv1.3\n" \
+    "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
+    "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
+    "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
+    > /root/.gradle/gradle.properties && \
+    gradle :ams-policy:flyway:compileJava :ams-rule:flyway:compileJava \
+        -x test -Penv=dev -PcustomerOverlay=ecuador --no-daemon \
+        -p /tmp/repo && \
+    rm /root/.gradle/gradle.properties && \
+    rm -rf /tmp/repo && \
+    echo "[base] Maven cache baked OK — $(du -sh /root/.gradle/caches | cut -f1)"

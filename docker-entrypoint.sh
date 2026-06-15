@@ -99,23 +99,7 @@ if [ ! -d "${REPO_PATH}/.git" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. Gradle warm-up — compile both modules once to:
-#    a) download dependencies from Azure Artifacts into the cache volume
-#    b) start the Gradle daemon so subsequent compiles reuse the warm JVM
-#    Skipped if the repo is not mounted (dev/test without -v)
-# ─────────────────────────────────────────────────────────────────────────────
-if [ -d "${REPO_PATH}/.git" ]; then
-    echo "[entrypoint] warming up Gradle daemon (first run may take a few minutes)..."
-    for MODULE in ":ams-policy:flyway" ":ams-rule:flyway"; do
-        gradle "${MODULE}:compileJava" -x test -Penv=dev -PcustomerOverlay=ecuador --quiet \
-            -p "${REPO_PATH}" \
-            && echo "[entrypoint] warm-up OK — ${MODULE}" \
-            || echo "[entrypoint] WARN: warm-up failed for ${MODULE} (continuing)"
-    done
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 6. Start application
+# 5. Start application
 # ─────────────────────────────────────────────────────────────────────────────
 echo "[entrypoint] starting Code Agent on port ${PORT}"
 export PORT
