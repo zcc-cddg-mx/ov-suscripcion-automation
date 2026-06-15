@@ -2,28 +2,30 @@
 # start-agent.sh — levanta el Code Agent (ov-code-agent:latest)
 #
 # Uso:
-#   GRADLE_DEV_PASSWORD=<pat-azure-artifacts> \
-#   GIT_PAT=<pat-azure-repos> \
-#   ./start-agent.sh
-
-: "${GRADLE_DEV_PASSWORD:?set GRADLE_DEV_PASSWORD before running}"
-: "${GIT_PAT:?set GIT_PAT before running}"
+#   PAT=<azure-pat> ./start-agent.sh
+#   (o define PAT en .env.local)
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "${SCRIPT_DIR}/.env.local" ] && source "${SCRIPT_DIR}/.env.local"
+
+: "${PAT:?set PAT in .env.local or environment}"
+: "${AZURE_USERNAME:?set AZURE_USERNAME in .env.local or environment}"
+: "${REPO_HOST_PATH:?set REPO_HOST_PATH in .env.local or environment}"
 
 docker run -d \
   --name ov-code-agent \
   -p 5000:5000 \
-  -e GRADLE_USERNAME=carlos.duarte2 \
-  -e GRADLE_DEV_PASSWORD="${GRADLE_DEV_PASSWORD:?required}" \
-  -e GIT_USERNAME=carlos.duarte2 \
-  -e GIT_PAT="${GIT_PAT:?required}" \
+  -e GRADLE_USERNAME="${AZURE_USERNAME}" \
+  -e GRADLE_DEV_PASSWORD="${PAT}" \
+  -e GIT_USERNAME="${AZURE_USERNAME}" \
+  -e GIT_PAT="${PAT}" \
   -e REPO_PATH=/repos/ov-arizona-backend-ecuador \
-  -v /home/idavid/dev/ov/ov-arizona-backend-ecuador:/repos/ov-arizona-backend-ecuador \
-  -v /data/gradle-cache:/root/.gradle/caches \
+  -v "${REPO_HOST_PATH}:/repos/ov-arizona-backend-ecuador" \
   ov-code-agent:latest
 
-echo "Levantando (warm-up Gradle en curso, puede tardar unos minutos)..."
+echo "Levantando..."
 until curl -sf http://localhost:5000/health > /dev/null 2>&1; do
     printf "."
     sleep 5
