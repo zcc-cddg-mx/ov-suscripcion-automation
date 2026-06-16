@@ -231,7 +231,7 @@ Verifica que Flyway registró la migración en su tabla de historial.
 
 ```sql
 SELECT COUNT(*)
-FROM flyway_schema_history
+FROM <FLYWAY_HISTORY_TABLE>          -- env: FLYWAY_HISTORY_TABLE
 WHERE script LIKE '%<migration_name>%'
   AND success = TRUE;
 -- Esperado: COUNT = 1
@@ -248,10 +248,11 @@ WHERE script LIKE '%<migration_name>%'
 Verifica que el servicio desplegado responde correctamente.
 
 ```
-GET http://<AMS_POLICY_HOST>/actuator/health   (module = ams-policy)
-GET http://<AMS_RULE_HOST>/actuator/health     (module = ams-rule)
+GET http://<AMS_POLICY_HOST>/<HEALTH_PATH>   (module = ams-policy)
+GET http://<AMS_RULE_HOST>/<HEALTH_PATH>     (module = ams-rule)
 ```
 
+- **Variables:** `AMS_POLICY_HOST`, `AMS_RULE_HOST`, `HEALTH_PATH` (env)
 - **Esperado:** HTTP 200, body contiene `"status": "UP"`
 - **Fallo si:** código ≠ 200, timeout, o `status` ≠ `"UP"`
 - **Aplica a:** `ren-data` y `rules`
@@ -265,14 +266,10 @@ Verifica que el número de filas cargadas coincide con lo esperado.
 
 ```sql
 SELECT COUNT(*)
-FROM <tabla_vencimientos>
-WHERE migration_id = '<migration_name>';
+FROM <RENEWAL_TABLE>                 -- env: RENEWAL_TABLE
+WHERE <RENEWAL_MIGRATION_ID_FIELD> = '<migration_name>';   -- env: RENEWAL_MIGRATION_ID_FIELD
 -- Esperado: COUNT = row_count (del request) si se envió, o COUNT > 0
 ```
-
-> **Nota para el equipo de desarrollo:** el nombre exacto de la tabla y el campo
-> `migration_id` deben confirmarse con el equipo de backend. La tabla objetivo es
-> la que Flyway popula a partir del `.xlsx` en `ams-policy/flyway/`.
 
 - **Fallo si:** `row_count` fue enviado en el request y el conteo difiere
 - **Fallo si:** `row_count` no fue enviado y el conteo es 0
@@ -285,9 +282,9 @@ Verifica que las filas "No Renovar" fueron insertadas con el campo de bloqueo co
 
 ```sql
 SELECT COUNT(*)
-FROM <tabla_vencimientos>
-WHERE migration_id = '<migration_name>'
-  AND renewal_blocked = 'Yes';
+FROM <RENEWAL_TABLE>                         -- env: RENEWAL_TABLE
+WHERE <RENEWAL_MIGRATION_ID_FIELD> = '<migration_name>'   -- env: RENEWAL_MIGRATION_ID_FIELD
+  AND <RENEWAL_BLOCKED_FIELD> = 'Yes';       -- env: RENEWAL_BLOCKED_FIELD
 -- Esperado: COUNT >= 1  (hay al menos 1 fila No Renovar por mes de negocio)
 ```
 
@@ -302,13 +299,11 @@ Verifica que la entidad de reglas fue cargada.
 
 ```sql
 SELECT COUNT(*)
-FROM <tabla_rules>
-WHERE entity = '<entity>'
-  AND migration_id = '<migration_name>';
+FROM <RULES_TABLE>                           -- env: RULES_TABLE
+WHERE <RULES_ENTITY_FIELD> = '<entity>'      -- env: RULES_ENTITY_FIELD
+  AND <RULES_MIGRATION_ID_FIELD> = '<migration_name>';  -- env: RULES_MIGRATION_ID_FIELD
 -- Esperado: COUNT > 0
 ```
-
-> **Nota:** el nombre de la tabla y los campos a confirmar con el equipo de backend.
 
 ---
 
@@ -329,16 +324,43 @@ Si alguno falla, el resultado es `rejected`.
 
 ## 6. Variables de entorno
 
+Todas las variables de configuración se pasan al container al desplegarlo.
+Nunca se hardcodean en el código.
+
+### Conectividad
+
 | Variable | Descripción | Ejemplo |
 |---|---|---|
 | `AMS_POLICY_HOST` | Host:puerto del servicio ams-policy en DEV | `ams-policy-dev:8080` |
 | `AMS_RULE_HOST` | Host:puerto del servicio ams-rule en DEV | `ams-rule-dev:8080` |
+| `HEALTH_PATH` | Path del endpoint de salud (default `/actuator/health`) | `/actuator/health` |
 | `DB_DSN` | DSN de conexión a la base de datos DEV | `postgresql://user:pass@db-dev:5432/amsdb` |
-| `N8N_CALLBACK_URL` | URL webhook n8n (fallback si callback_url no viene en el request) | `https://n8n.host/webhook/qa-result` |
-| `QA_TASKS_DB` | Path SQLite persistencia (default `/data/qa_tasks.db`) | `/data/qa_tasks.db` |
-| `UPLOADS_DIR` | No aplica — el QA Agent no recibe archivos | — |
-| `RETENTION_DAYS` | Días de retención de registros SQLite (default 90) | `90` |
-| `PORT` | Puerto de la API HTTP (default 5000) | `5000` |
+| `N8N_CALLBACK_URL` | URL webhook n8n (fallback si `callback_url` no viene en el request) | `https://n8n.host/webhook/qa-result` |
+
+### Esquema de base de datos — `ren-data`
+
+| Variable | Descripción | Ejemplo |
+|---|---|---|
+| `FLYWAY_HISTORY_TABLE` | Tabla de historial Flyway (default `flyway_schema_history`) | `flyway_schema_history` |
+| `RENEWAL_TABLE` | Tabla que contiene las filas de vencimientos cargadas | `frd_fixed_renewal_data` |
+| `RENEWAL_MIGRATION_ID_FIELD` | Campo que identifica la migración en `RENEWAL_TABLE` | `migration_id` |
+| `RENEWAL_BLOCKED_FIELD` | Campo que indica bloqueo de renovación (`'Yes'`/`'No'`) | `renewal_blocked` |
+
+### Esquema de base de datos — `rules`
+
+| Variable | Descripción | Ejemplo |
+|---|---|---|
+| `RULES_TABLE` | Tabla que contiene las reglas de tarificación cargadas | `ams_rule_entry` |
+| `RULES_ENTITY_FIELD` | Campo de entidad en `RULES_TABLE` | `entity` |
+| `RULES_MIGRATION_ID_FIELD` | Campo que identifica la migración en `RULES_TABLE` | `migration_id` |
+
+### Operación
+
+| Variable | Descripción | Default |
+|---|---|---|
+| `QA_TASKS_DB` | Path SQLite persistencia | `/data/qa_tasks.db` |
+| `RETENTION_DAYS` | Días de retención de registros SQLite | `90` |
+| `PORT` | Puerto de la API HTTP | `5000` |
 
 ---
 
@@ -489,18 +511,34 @@ docker run -v qa-agent-data:/data ... ov-qa-agent:latest
 
 ---
 
-## 10. Dudas pendientes a resolver con el equipo de backend
+## 10. Configuración al desplegar
 
-Antes de implementar los checks SQL, el equipo de QA Agent necesita confirmar
-con el equipo de backend de OV:
+Todos los valores de esquema, tablas y campos se suministran como variables de
+entorno al levantar el container — el código no necesita conocerlos de antemano.
 
-1. **Nombre exacto de la tabla** que Flyway pobla con los datos del `.xlsx` en `ams-policy`
-2. **Campo `migration_id`** (o equivalente) para filtrar filas por migración
-3. **Campo `renewal_blocked`** (o equivalente) para identificar filas "No Renovar"
-4. **Tabla y campos para `rules`** — qué tabla/columnas contienen las reglas de tarificación
-5. **Nombre exacto de `flyway_schema_history`** — puede diferir por esquema (`flyway_schema_history` vs `schema_version`)
-6. **Credenciales de base de datos DEV** y política de acceso desde SERVICIOSIAS
-7. **URL base del actuator** de ams-policy y ams-rule en DEV (`/actuator/health` o `/health`)
+El equipo de operaciones / backend debe proveer los valores de las variables de §6
+al configurar el container en SERVICIOSIAS. Ejemplo de arranque:
+
+```bash
+docker run -d \
+  -e AMS_POLICY_HOST=ams-policy-dev:8080 \
+  -e AMS_RULE_HOST=ams-rule-dev:8080 \
+  -e HEALTH_PATH=/actuator/health \
+  -e DB_DSN=postgresql://qa_user:secret@db-dev:5432/amsdb \
+  -e FLYWAY_HISTORY_TABLE=flyway_schema_history \
+  -e RENEWAL_TABLE=frd_fixed_renewal_data \
+  -e RENEWAL_MIGRATION_ID_FIELD=migration_id \
+  -e RENEWAL_BLOCKED_FIELD=renewal_blocked \
+  -e RULES_TABLE=ams_rule_entry \
+  -e RULES_ENTITY_FIELD=entity \
+  -e RULES_MIGRATION_ID_FIELD=migration_id \
+  -e N8N_CALLBACK_URL=https://n8n.genai.zurich.com/webhook/qa-result \
+  -v qa-agent-data:/data \
+  -p 5000:5000 \
+  ov-qa-agent:latest
+```
+
+Los valores de ejemplo son ilustrativos — los valores reales los provee el equipo de backend.
 
 ---
 
