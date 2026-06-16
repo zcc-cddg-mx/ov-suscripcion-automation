@@ -3,7 +3,6 @@ tests/migrations/*.xlsx
 tests/migrations/*.java
 data/
 logs/
-local-repo.tar.gz
 
 # Local agent configuration (contains server-specific paths)
 config.json
@@ -11,8 +10,9 @@ config.json
 # Docker build artifacts — not committed, must be present locally to build the image
 gradle-6.8.3.zip
 
-# local-repo Maven: directorio gitignoreado, distribuir via gradle/local-repo.tar.gz
+# local-repo Maven: gitignoreado, distribuir via gradle/local-repo.tar.gz (fuera de git, >100MB)
 gradle/local-repo/
+gradle/local-repo.tar.gz
 gradle/plugins/
 gradle/plugins/com.adarshr
 gradle/plugins/com.gorylenko.gradle-git-properties
