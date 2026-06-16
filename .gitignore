@@ -2,6 +2,7 @@
 tests/migrations/*.xlsx
 tests/migrations/*.java
 data/
+logs/
 
 # Local agent configuration (contains server-specific paths)
 config.json

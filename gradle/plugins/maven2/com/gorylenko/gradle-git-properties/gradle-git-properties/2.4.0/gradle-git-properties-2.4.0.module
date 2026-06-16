@@ -1,0 +1,59 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.gorylenko.gradle-git-properties",
+    "module": "gradle-git-properties",
+    "version": "2.4.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "gradle-git-properties-2.4.0.jar",
+          "url": "gradle-git-properties-2.4.0.jar",
+          "size": 3372108,
+          "sha512": "37960842448651ecc02a07268faf4fb0cba3fe46a62eb9e7951431802796bc12eef087989d883b22eb583aa9b7f55ed03e32883588651703e30148d8fad2303c",
+          "sha256": "8bc98c5daad779732eb72b723329d9fa724bea9dd10ab6d0909ec7994422b252",
+          "sha1": "4fa00d964a46d7b23491c7eda8a90d2f72c71a09",
+          "md5": "b064b1fdcb79f034e0994e46dc145819"
+        }
+      ]
+    },
+    {
+      "name": "shadowRuntimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "shadowed",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "gradle-git-properties-2.4.0.jar",
+          "url": "gradle-git-properties-2.4.0.jar",
+          "size": 3372108,
+          "sha512": "37960842448651ecc02a07268faf4fb0cba3fe46a62eb9e7951431802796bc12eef087989d883b22eb583aa9b7f55ed03e32883588651703e30148d8fad2303c",
+          "sha256": "8bc98c5daad779732eb72b723329d9fa724bea9dd10ab6d0909ec7994422b252",
+          "sha1": "4fa00d964a46d7b23491c7eda8a90d2f72c71a09",
+          "md5": "b064b1fdcb79f034e0994e46dc145819"
+        }
+      ]
+    }
+  ]
+}
