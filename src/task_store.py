@@ -11,7 +11,10 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from pathlib import Path
+
+from src.logger import log
 
 _DB_PATH = Path(os.environ.get("TASKS_DB", "/data/tasks.db"))
 _lock = threading.Lock()
@@ -108,3 +111,37 @@ def get_recent(limit: int = 50) -> list[dict]:
             "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
+
+
+def cleanup_old_records(days: int = 90) -> int:
+    """Delete task records older than *days* days. Returns the number of rows deleted."""
+    cutoff = time.strftime(
+        "%Y-%m-%dT%H:%M:%S+00:00",
+        time.gmtime(time.time() - days * 86400),
+    )
+    with _lock, _connect() as conn:
+        cur = conn.execute(
+            "DELETE FROM tasks WHERE created_at < ?", (cutoff,)
+        )
+        deleted = cur.rowcount
+    if deleted:
+        log("CLEANUP", f"purged {deleted} task record(s) older than {days} days from SQLite")
+    return deleted
+
+
+def cleanup_old_uploads(uploads_dir: Path, days: int = 90) -> int:
+    """Delete files in *uploads_dir* older than *days* days. Returns the number of files deleted."""
+    if not uploads_dir.is_dir():
+        return 0
+    cutoff = time.time() - days * 86400
+    deleted = 0
+    for f in uploads_dir.iterdir():
+        if f.is_file() and f.stat().st_mtime < cutoff:
+            try:
+                f.unlink()
+                deleted += 1
+            except OSError as exc:
+                log("CLEANUP", f"could not delete {f.name}: {exc}")
+    if deleted:
+        log("CLEANUP", f"deleted {deleted} upload file(s) older than {days} days")
+    return deleted

@@ -44,6 +44,7 @@ from __future__ import annotations
 import os
 import re
 import threading
+import time
 import traceback
 import uuid
 from datetime import datetime, timezone
@@ -64,6 +65,10 @@ from src import task_store
 app = Flask(__name__)
 task_store.init_db()
 
+_RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "90"))
+task_store.cleanup_old_records(days=_RETENTION_DAYS)
+task_store.cleanup_old_uploads(_UPLOADS_DIR, days=_RETENTION_DAYS)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Concurrency control
 # ─────────────────────────────────────────────────────────────────────────────
@@ -75,9 +80,14 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _notify_n8n(task: dict) -> None:
-    """POST task result to N8N_CALLBACK_URL. Logs and swallows errors — never blocks the worker.
+_N8N_CALLBACK_RETRIES = 3
+_N8N_CALLBACK_BACKOFF_BASE = 2  # seconds — attempts: 2s, 4s, 8s
 
+
+def _notify_n8n(task: dict) -> None:
+    """POST task result to N8N_CALLBACK_URL with up to 3 retries (exponential backoff).
+
+    Logs and swallows errors after all retries — never blocks the worker.
     Body sent to n8n:
       {"ticket": "ZNRX-67108", "status": "success"|"error",
        "branch": "feature/...", "aux_branch": "feature/..._developer_auxiliar",
@@ -99,13 +109,20 @@ def _notify_n8n(task: dict) -> None:
         "error":        task.get("error"),
         "completed_at": _now_iso(),
     }
-    # Drop None values — keep payload clean
     body = {k: v for k, v in body.items() if v is not None}
-    try:
-        resp = http_requests.post(_N8N_CALLBACK_URL, json=body, timeout=10)
-        log("N8N", f"callback → {_N8N_CALLBACK_URL} status={resp.status_code}")
-    except Exception as exc:
-        log("N8N", f"callback failed ({exc}) — task already persisted in SQLite")
+
+    for attempt in range(1, _N8N_CALLBACK_RETRIES + 1):
+        try:
+            resp = http_requests.post(_N8N_CALLBACK_URL, json=body, timeout=10)
+            log("N8N", f"callback → {_N8N_CALLBACK_URL} status={resp.status_code} (attempt {attempt})")
+            return
+        except Exception as exc:
+            if attempt < _N8N_CALLBACK_RETRIES:
+                delay = _N8N_CALLBACK_BACKOFF_BASE ** attempt
+                log("N8N", f"callback attempt {attempt} failed ({exc}) — retrying in {delay}s")
+                time.sleep(delay)
+            else:
+                log("N8N", f"callback failed after {_N8N_CALLBACK_RETRIES} attempts ({exc}) — task persisted in SQLite")
 
 
 @app.get("/health")

@@ -21,6 +21,8 @@ from pathlib import Path
 
 from src.logger import log
 
+_DEFAULT_TIMEOUT_MINUTES = int(os.environ.get("BUILD_TIMEOUT_MINUTES", "20"))
+
 # Maps Code Agent module names to Gradle subproject paths
 _MODULE_GRADLE_PATH = {
     "ams-policy": ":ams-policy:flyway",
@@ -40,12 +42,15 @@ class BuildCheckError(Exception):
     pass
 
 
-def verify(repo_root: Path, module: str) -> None:
+def verify(repo_root: Path, module: str, timeout_minutes: int | None = None) -> None:
     """Compile the flyway module in *repo_root* for *module*.
 
     In local dev: runs setup-local-gradle.sh if available to sync gradle.properties.
     In container: gradle.properties is already written by docker-entrypoint.sh.
-    Raises BuildCheckError on compilation failure. Returns normally on success.
+    Raises BuildCheckError on compilation failure or timeout. Returns normally on success.
+
+    timeout_minutes: kill Gradle after this many minutes. Defaults to BUILD_TIMEOUT_MINUTES
+    env var (default 20). Pass 0 to disable.
     """
     gradle_path = _MODULE_GRADLE_PATH.get(module)
     if gradle_path is None:
@@ -53,6 +58,11 @@ def verify(repo_root: Path, module: str) -> None:
             f"Unknown module '{module}' for build check. "
             f"Known modules: {list(_MODULE_GRADLE_PATH)}"
         )
+
+    timeout_secs = (
+        (timeout_minutes * 60) if timeout_minutes is not None else
+        (_DEFAULT_TIMEOUT_MINUTES * 60 if _DEFAULT_TIMEOUT_MINUTES > 0 else None)
+    )
 
     abs_repo = Path(repo_root).resolve()
 
@@ -100,6 +110,14 @@ def verify(repo_root: Path, module: str) -> None:
         line = line.rstrip()
         output_lines.append(line)
         print(f"[gradle] {line}", flush=True)
+        if timeout_secs and (time.monotonic() - t0) > timeout_secs:
+            proc.kill()
+            proc.stdout.close()
+            proc.wait()
+            raise BuildCheckError(
+                f"Build timed out after {timeout_minutes or _DEFAULT_TIMEOUT_MINUTES} minutes "
+                f"for module '{module}' — Gradle process killed"
+            )
 
     proc.wait()
     elapsed = time.monotonic() - t0

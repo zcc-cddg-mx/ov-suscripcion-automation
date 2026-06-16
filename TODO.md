@@ -17,32 +17,31 @@
 - [x] `gradle.workers.max` dinámico via `nproc`
 - [x] Scripts numerados: `1-build-base.sh`, `2-start-agent.sh`, `3-test-agent.sh`
 - [x] Mock n8n local (`tests/mock_n8n.py`) para pruebas de callback
+- [x] **Verificar contrato de respuesta con n8n** — confirmar que los campos `branch` y `aux_branch` que recibe n8n son suficientes para crear los dos PRs via Azure CLI
 
 ---
 
 ## Pendiente — Integración con n8n
 
 - [ ] **Configurar URL real de n8n en producción** — descomentar `N8N_CALLBACK_URL` en `.env.local` y en el servidor SERVICIOSIAS con la URL definitiva (no webhook-test)
-- [ ] **Verificar contrato de respuesta con n8n** — confirmar que los campos `branch` y `aux_branch` que recibe n8n son suficientes para crear los dos PRs via Azure CLI
 - [ ] **Prueba end-to-end con n8n real** — disparar desde Jira → n8n → agente → callback → PR creado en Azure DevOps
 
 ---
 
 ## Pendiente — Calidad y robustez
 
-- [ ] **Progreso granular en `running`** — agregar sub-estados (`running:generating`, `running:compiling`, `running:pushing`) para que n8n pueda mostrar progreso real al operador
-- [ ] **Timeout de tarea** — si compile=true tarda más de N minutos, matar el proceso Gradle y responder error (evita que el lock quede tomado indefinidamente si Gradle se cuelga)
-- [ ] **Limpieza de uploads** — borrar archivos de `/data/uploads/` después de N días para evitar acumulación de Excel en disco
-- [ ] **Limpieza de tareas SQLite** — purgar registros antiguos (> 30 días) automáticamente al arrancar
-- [ ] **Retry del callback** — si n8n no responde al primer intento, reintentar 2-3 veces con backoff antes de descartar
+- [x] **Timeout de tarea** — `BUILD_TIMEOUT_MINUTES` (default 20): mata el proceso Gradle si supera el límite y retorna `BuildCheckError`; lock liberado en el `finally`
+- [x] **Limpieza de uploads** — `cleanup_old_uploads()` borra archivos de `/data/uploads/` al arrancar; configurable con `RETENTION_DAYS` (default 90)
+- [x] **Limpieza de tareas SQLite** — `cleanup_old_records()` purga registros > `RETENTION_DAYS` días al arrancar
+- [x] **Retry del callback** — `_notify_n8n()` reintenta hasta 3 veces con backoff exponencial (2s, 4s, 8s) antes de descartar
 
 ---
 
 ## Pendiente — Operaciones
 
 - [ ] **Despliegue en SERVICIOSIAS** — subir imagen al registry interno, configurar variables de entorno, montar volumen persistente
-- [ ] **`gradle/local-repo.tar.gz`** — definir mecanismo de distribución al equipo de release (SharePoint, pipeline, etc.) dado que no está en git (384M)
-- [ ] **Renovar PAT** — el PAT actual en `.env.local` fue expuesto en el historial git (commit `18fa1ec1`); generar uno nuevo en Azure DevOps si no se hizo ya
+- [x] **`gradle/local-repo.tar.gz`** — definir mecanismo de distribución al equipo de release (SharePoint, pipeline, etc.) dado que no está en git (384M)
+- [x] **Renovar PAT** — PAT expuesto fue eliminado del historial git con `filter-repo`; generar nuevo PAT en Azure DevOps si aún no se hizo
 - [ ] **Soporte para tipo `rules`** — validar y probar el flujo completo de `command=rules` con archivo adjunto via multipart (actualmente solo `ren-data` fue probado end-to-end)
 
 ---
@@ -52,3 +51,4 @@
 - [ ] **Autenticación en la API** — agregar un header `X-Agent-Token` o API key para que solo n8n pueda llamar al agente (evitar ejecuciones no autorizadas en producción)
 - [ ] **Logs centralizados** — enviar logs estructurados a un sistema externo (Elastic, Splunk) para auditoría de migraciones
 - [ ] **Reconstrucción automática de la imagen base** — pipeline en Azure DevOps que regenere `ov-agent-base` cuando se actualice `local-repo.tar.gz` o el repo backend tenga cambios en dependencias
+- [ ] **Progreso granular en `running`** — agregar sub-estados (`running:generating`, `running:compiling`, `running:pushing`) para que n8n pueda mostrar progreso real al operador

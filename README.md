@@ -157,6 +157,8 @@ El mock imprime cada callback recibido con ticket, status y branch.
 | `GRADLE_WORKERS_MAX` | Override `gradle.workers.max` (default: `nproc`) |
 | `TASKS_DB` | Path DB SQLite (default `/data/tasks.db`) |
 | `UPLOADS_DIR` | Directorio uploads (default `/data/uploads`) |
+| `BUILD_TIMEOUT_MINUTES` | Timeout para compilación Gradle (default `20`). 0 = sin límite |
+| `RETENTION_DAYS` | Días de retención para uploads y registros SQLite (default `90`) |
 
 ### Flujo de construcción
 
