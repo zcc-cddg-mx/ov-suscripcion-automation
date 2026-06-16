@@ -86,13 +86,18 @@ def _notify_n8n(task: dict) -> None:
     if not _N8N_CALLBACK_URL:
         return
     body = {
-        "ticket":     task.get("ticket"),
-        "status":     "success" if task.get("status") == "done" else "error",
-        "branch":     task.get("branch"),
-        "aux_branch": task.get("aux_branch"),
-        "commit_id":  task.get("commit_id"),
-        "summary":    task.get("summary"),
-        "error":      task.get("error"),
+        "ticket":       task.get("ticket"),
+        "status":       "success" if task.get("status") == "done" else "error",
+        "task_id":      task.get("task_id"),
+        "command":      task.get("command"),
+        "branch":       task.get("branch"),
+        "aux_branch":   task.get("aux_branch"),
+        "commit_id":    task.get("commit_id"),
+        "repo":         task.get("repo"),
+        "build_status": task.get("build_status"),
+        "summary":      task.get("summary"),
+        "error":        task.get("error"),
+        "completed_at": _now_iso(),
     }
     # Drop None values — keep payload clean
     body = {k: v for k, v in body.items() if v is not None}
