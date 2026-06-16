@@ -49,9 +49,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import requests as http_requests
 from flask import Flask, jsonify, request
 
 _UPLOADS_DIR = Path(os.environ.get("UPLOADS_DIR", "/data/uploads"))
+_N8N_CALLBACK_URL = os.environ.get("N8N_CALLBACK_URL", "")  # e.g. https://n8n.host/webhook/code-agent-done
 
 from main import run_payload
 from src.build_check import BuildCheckError
@@ -71,6 +73,34 @@ _current_task: dict | None = None  # {task_id, ticket, started_at}
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _notify_n8n(task: dict) -> None:
+    """POST task result to N8N_CALLBACK_URL. Logs and swallows errors — never blocks the worker.
+
+    Body sent to n8n:
+      {"ticket": "ZNRX-67108", "status": "success"|"error",
+       "branch": "feature/...", "aux_branch": "feature/..._developer_auxiliar",
+       "commit_id": "abc123", "summary": "...", "error": "..."}
+    """
+    if not _N8N_CALLBACK_URL:
+        return
+    body = {
+        "ticket":     task.get("ticket"),
+        "status":     "success" if task.get("status") == "done" else "error",
+        "branch":     task.get("branch"),
+        "aux_branch": task.get("aux_branch"),
+        "commit_id":  task.get("commit_id"),
+        "summary":    task.get("summary"),
+        "error":      task.get("error"),
+    }
+    # Drop None values — keep payload clean
+    body = {k: v for k, v in body.items() if v is not None}
+    try:
+        resp = http_requests.post(_N8N_CALLBACK_URL, json=body, timeout=10)
+        log("N8N", f"callback → {_N8N_CALLBACK_URL} status={resp.status_code}")
+    except Exception as exc:
+        log("N8N", f"callback failed ({exc}) — task already persisted in SQLite")
 
 
 @app.get("/health")
@@ -226,6 +256,7 @@ def run():
         finally:
             _current_task = None
             _lock.release()
+            _notify_n8n(task_store.get(task_id) or {"task_id": task_id, "status": "error"})
 
     threading.Thread(target=worker, daemon=True).start()
     return jsonify({"status": "queued", "task_id": task_id}), 202

@@ -21,6 +21,7 @@ docker run -d \
   -e GIT_USERNAME="${AZURE_USERNAME}" \
   -e GIT_PAT="${PAT}" \
   -e REPO_PATH=/repos/ov-arizona-backend-ecuador \
+  ${N8N_CALLBACK_URL:+-e N8N_CALLBACK_URL="${N8N_CALLBACK_URL}"} \
   -v ov-agent-data:/data \
   ov-code-agent:latest
 
