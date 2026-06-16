@@ -39,6 +39,7 @@
 
 ## Pendiente — Operaciones
 
+- [x] **Código publicado en Azure DevOps** — repo `ov-code-agent`, rama `test` (branch protection en main/develop requiere PR)
 - [ ] **Despliegue en SERVICIOSIAS** — subir imagen al registry interno, configurar variables de entorno, montar volumen persistente
 - [x] **`gradle/local-repo.tar.gz`** — definir mecanismo de distribución al equipo de release (SharePoint, pipeline, etc.) dado que no está en git (384M)
 - [x] **Renovar PAT** — PAT expuesto fue eliminado del historial git con `filter-repo`; generar nuevo PAT en Azure DevOps si aún no se hizo
