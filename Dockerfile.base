@@ -1,22 +1,22 @@
 # ov-agent-base — imagen base para ov-code-agent
 #
 # Contiene: Ubuntu 24.04 + Temurin 8 JDK + Gradle 6.8.3 + baked plugins
-#           + Python venv + dependencias pip + cache Maven del proyecto
+#           + Python venv + dependencias pip
+#           + /repos/ov-arizona-backend-ecuador (clon del repo backend)
+#           + /root/.gradle/caches poblado con todas las dependencias del proyecto
 #
-# El cache Maven (~243M) se bake durante el build descargando las JARs del
-# proyecto desde Azure Artifacts. Requiere el PAT como --build-arg.
-# El PAT se borra en el mismo RUN en que se usa — no queda en ningún layer final.
+# El cache elimina descargas desde Azure Artifacts en compilaciones normales.
+# Las credenciales Azure Artifacts se mantienen como fallback para dependencias nuevas.
+# GIT_PAT y GRADLE_DEV_PASSWORD se borran en el mismo RUN — no quedan en capas finales.
 #
 # Build:
-#   GRADLE_DEV_PASSWORD=<pat> ./build-base.sh
-#
-# El repo backend se pasa como build-context secundario — no se copia en la imagen:
-#   docker buildx build --build-context repo=../ov-arizona-backend-ecuador ...
+#   PAT=<azure-pat> ./build-base.sh
 
 FROM ams-ubuntu-lite:latest
 
 ARG GRADLE_USERNAME
 ARG GRADLE_DEV_PASSWORD
+ARG GIT_PAT
 
 # ─────────────────────────────────────────────────────────────────────────────
 # System dependencies
@@ -32,16 +32,16 @@ RUN apt-get -qq update && \
 # ─────────────────────────────────────────────────────────────────────────────
 # Gradle 6.8.3
 # ─────────────────────────────────────────────────────────────────────────────
-COPY gradle-6.8.3.zip /tmp/gradle.zip
+COPY gradle/gradle-6.8.3.zip /tmp/gradle.zip
 RUN unzip -q /tmp/gradle.zip -d /opt && \
     ln -s /opt/gradle-6.8.3/bin/gradle /usr/local/bin/gradle && \
     rm /tmp/gradle.zip
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Gradle plugin JARs bakeados (no están en Azure Artifacts)
+# Gradle plugin JARs bakeados (gorylenko y otros no publicados en Azure Artifacts)
 # ─────────────────────────────────────────────────────────────────────────────
-COPY gradle-plugins/maven2 /opt/gradle-plugins/maven2
-COPY gradle-init.d/baked-plugins.gradle /root/.gradle/init.d/baked-plugins.gradle
+COPY gradle/plugins/maven2 /opt/gradle-plugins/maven2
+COPY gradle/init.d/baked-plugins.gradle /root/.gradle/init.d/baked-plugins.gradle
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Python venv + dependencias
@@ -56,16 +56,22 @@ ENV JAVA_HOME=/usr/lib/jvm/temurin-8-jdk-amd64
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Bake Maven cache
+# Clonar repo backend, poblar ramas principales y cache Gradle
 #
-# El repo backend llega via --build-context repo=../ov-arizona-backend-ecuador
-# Solo se necesita para resolver dependencias — se borra al final del RUN.
-# gradle.properties (con el PAT) se crea y borra en el mismo RUN layer,
-# así no queda expuesto en la imagen final.
+# 1. git clone con GIT_PAT (solo lectura)
+# 2. fetch de ramas principales: main, develop, test, developer
+# 3. gradle.properties con credenciales Azure Artifacts
+# 4. copyAllDependencies — resuelve todos los subproyectos y pobla cache Gradle
+# 5. Se borran gradle.properties — PAT no queda en ninguna capa final
 # ─────────────────────────────────────────────────────────────────────────────
-COPY --from=repo . /tmp/repo
-
-RUN mkdir -p /root/.gradle && \
+RUN git clone \
+        "https://ZurichInsurance-EC:${GIT_PAT}@dev.azure.com/ZurichInsurance-EC/Oficina-Virtual-ZEC/_git/ov-arizona-backend-ecuador" \
+        /repos/ov-arizona-backend-ecuador && \
+    cd /repos/ov-arizona-backend-ecuador && \
+    for branch in main develop test developer; do \
+        git fetch origin ${branch}:${branch} 2>/dev/null || true; \
+    done && \
+    mkdir -p /root/.gradle && \
     printf \
 "org.gradle.daemon=false\n\
 org.gradle.parallel=true\n\
@@ -87,9 +93,7 @@ systemProphttps.protocols=TLSv1.2,TLSv1.3\n" \
     "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
     "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
     > /root/.gradle/gradle.properties && \
-    gradle :ams-policy:flyway:compileJava :ams-rule:flyway:compileJava \
-        -x test -Penv=dev -PcustomerOverlay=ecuador --no-daemon \
-        -p /tmp/repo && \
+    gradle copyAllDependencies \
+        -Penv=dev -PcustomerOverlay=ecuador --no-daemon && \
     rm /root/.gradle/gradle.properties && \
-    rm -rf /tmp/repo && \
-    echo "[base] Maven cache baked OK — $(du -sh /root/.gradle/caches | cut -f1)"
+    echo "[base] cache baked OK — gradle=$(du -sh /root/.gradle/caches | cut -f1)"

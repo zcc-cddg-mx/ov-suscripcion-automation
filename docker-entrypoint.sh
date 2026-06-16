@@ -75,9 +75,6 @@ echo "[entrypoint] ~/.gradle/gradle.properties generated"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. Configure git credentials for Azure Repos (PAT-based HTTPS)
-# Azure Repos remotes use the org name (ZurichInsurance-EC) as the URL user,
-# not the personal username — both entries are written so git credential lookup
-# matches regardless of how the remote URL is configured.
 # ─────────────────────────────────────────────────────────────────────────────
 git config --global credential.helper store
 printf "https://ZurichInsurance-EC:%s@dev.azure.com\n" "${GIT_PAT}" >> ~/.git-credentials
@@ -85,17 +82,26 @@ printf "https://%s:%s@dev.azure.com\n" "${GIT_USERNAME}" "${GIT_PAT}" >> ~/.git-
 
 git config --global user.email "${GIT_USERNAME}@zurichinsurance.com"
 git config --global user.name  "${GIT_USERNAME}"
-
-# Allow git to operate on the mounted repo (owned by host user, not container root)
 git config --global --add safe.directory "${REPO_PATH}"
 
 echo "[entrypoint] git credentials configured"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Verify repo is mounted
+# 4. Actualizar ramas principales del repo bakeado
 # ─────────────────────────────────────────────────────────────────────────────
-if [ ! -d "${REPO_PATH}/.git" ]; then
-    echo "[entrypoint] WARNING: repo not found at ${REPO_PATH} — mount it with -v"
+if [ -d "${REPO_PATH}/.git" ]; then
+    echo "[entrypoint] updating repo branches..."
+    cd "${REPO_PATH}"
+    git fetch origin 2>&1 | sed 's/^/[entrypoint] /'
+    for branch in main develop test developer; do
+        git fetch origin "${branch}:${branch}" 2>/dev/null && \
+            echo "[entrypoint] branch ${branch} updated" || \
+            echo "[entrypoint] branch ${branch} not found — skipping"
+    done
+    git checkout developer
+    cd /app
+else
+    echo "[entrypoint] WARNING: repo not found at ${REPO_PATH}"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
