@@ -115,6 +115,31 @@ En caso de error: `"status": "error"` + campo `"error"` con el detalle.
 
 ---
 
+## Pruebas locales del callback
+
+Para verificar el callback sin conectarse a n8n real:
+
+**Terminal 1 — levantar el mock:**
+```bash
+python tests/mock_n8n.py
+# Listening on http://0.0.0.0:9099/webhook
+```
+
+**`.env.local` — activar URL del mock:**
+```bash
+export N8N_CALLBACK_URL=http://172.17.0.1:9099/webhook
+```
+
+**Terminal 2 — reiniciar y probar:**
+```bash
+./2-start-agent.sh
+# enviar prueba desde Bruno o 3-test-agent.sh
+```
+
+El mock imprime cada callback recibido con ticket, status y branch.
+
+---
+
 ## Docker
 
 ### Requisitos previos
