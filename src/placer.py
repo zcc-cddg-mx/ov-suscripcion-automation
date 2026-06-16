@@ -113,6 +113,39 @@ def _validate_migration_pair(files: list[Path]) -> None:
         )
 
 
+def _push_branch(repo_dir: str, branch_name: str) -> None:
+    """Push *branch_name* to origin, retrying with --force-with-lease if the branch already exists.
+
+    --force-with-lease is safe: it only overwrites if the remote ref matches our local
+    knowledge — it won't clobber commits pushed by someone else.
+    """
+    result = subprocess.run(
+        ["git", "-C", repo_dir, "push", "--set-upstream", "origin", branch_name],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return
+    # Check whether the branch already exists in origin
+    ls = subprocess.run(
+        ["git", "-C", repo_dir, "ls-remote", "--heads", "origin", branch_name],
+        capture_output=True, text=True,
+    )
+    if ls.returncode == 0 and ls.stdout.strip():
+        log("GIT", f"branch '{branch_name}' already exists in origin, retrying with --force-with-lease")
+        subprocess.run(
+            ["git", "-C", repo_dir, "push", "--force-with-lease", "--set-upstream", "origin", branch_name],
+            check=True,
+        )
+    else:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            result.args,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+
+
 def git_add_commit_push(
     repo_root: Path,
     files: list[Path],
@@ -197,10 +230,7 @@ def create_auxiliary_branch(
 
     # Push aux branch to origin
     log("GIT", f"pushing aux branch '{aux_branch}' to origin")
-    subprocess.run(
-        ["git", "-C", r, "push", "--set-upstream", "origin", aux_branch],
-        check=True,
-    )
+    _push_branch(r, aux_branch)
     log("GIT", f"pushed aux branch '{aux_branch}' to origin")
 
     return aux_branch
