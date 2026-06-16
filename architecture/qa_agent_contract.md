@@ -1,6 +1,6 @@
 # QA Agent — Contrato de diseño
 
-> Versión: 1.1 — 2026-06-16  
+> Versión: 1.2 — 2026-06-16  
 > Autor: equipo OV Suscripciones  
 > Destinatario: equipo de desarrollo del QA Agent
 
@@ -29,8 +29,8 @@ Jira (webhook)
 - Recibir el archivo Excel de negocio (`baseticketMES.xlsx`) adjunto por n8n
 - Verificar que el servicio DEV responde correctamente tras el deploy
 - Verificar que la migración Flyway fue aplicada en la base de datos
-- Verificar la integridad de los datos de negocio insertados (conteo total + muestra aleatoria de 50 placas)
-- Verificar individualmente por placa que el factor y el estado de bloqueo coinciden con el Excel
+- **Validación directa BD:** verificar la integridad de los datos insertados (conteo total + muestra aleatoria de 50 placas — factor y renewal_blocked en tabla de vencimientos)
+- **Validación vía API del sistema:** para la misma muestra de 50 placas, llamar al endpoint de cotización/tarificación y verificar que el factor calculado por el motor coincide con la tasa nueva del Excel
 - Devolver a n8n un resultado estructurado (aprobado / rechazado + detalle por check y por placa)
 
 El QA Agent **no hace push**, **no crea PRs**, **no modifica código**.
@@ -164,13 +164,15 @@ Al completar la validación (resultado `approved` o `rejected`), el QA Agent hac
   "branch":         "feature/ZNRX_67108_renov_junio",
   "aux_branch":     "feature/ZNRX_67108_renov_junio_developer_auxiliar",
   "commit_id":      "abc123def456",
-  "summary":        "All 5 checks passed — migration applied, 1342 rows validated, 50/50 plate sample OK",
+  "summary":        "All 6 checks passed — migration applied, 1342 rows validated, 50/50 plate sample OK (BD + API)",
   "checks":         [
     {"name": "flyway_history",   "status": "ok", "detail": "migration recorded in schema_version"},
     {"name": "endpoint_health",  "status": "ok", "detail": "GET /actuator/health → 200"},
     {"name": "row_count",        "status": "ok", "detail": "1342 rows found, expected 1342"},
     {"name": "no_renovar_count", "status": "ok", "detail": "7 'No Renovar' rows found"},
-    {"name": "plate_sample",     "status": "ok", "detail": "50/50 plates matched — factor and renewal_blocked correct",
+    {"name": "plate_sample",     "status": "ok", "detail": "50/50 plates matched in DB — factor and renewal_blocked correct",
+     "sample_size": 50, "passed": 50, "failed": 0},
+    {"name": "plate_sample_api", "status": "ok", "detail": "50/50 plates returned correct factor from tariff API",
      "sample_size": 50, "passed": 50, "failed": 0}
   ],
   "completed_at":   "2026-06-15T14:21:30+00:00"
@@ -347,6 +349,64 @@ WHERE  <RENEWAL_MIGRATION_ID_FIELD> = '<migration_name>'
 
 ---
 
+### 5.7 Check 7 — `plate_sample_api` (HTTP) — solo `ren-data`
+
+Verifica que el **motor de tarificación** del sistema calcula el factor correcto
+para cada placa de la muestra, usando el endpoint de cotización.
+
+Usa la **misma muestra de 50 placas** seleccionada en el check 6 (`plate_sample`).
+Ambos checks comparten el sorteo inicial para correlacionar los resultados
+(si una placa falla en BD y también en API, queda evidente cuál es la fuente del problema).
+
+**Por cada placa de la muestra:**
+
+```
+POST http://<AMS_POLICY_HOST>/<TARIFF_API_PATH>
+Content-Type: application/json
+
+{
+  "<TARIFF_PLATE_FIELD>":  "<placa>",
+  "<TARIFF_CHASIS_FIELD>": "<chasis>"
+}
+```
+
+- **Variables:** `TARIFF_API_PATH`, `TARIFF_PLATE_FIELD`, `TARIFF_CHASIS_FIELD` (env)
+- **Campo de respuesta a leer:** `TARIFF_RESPONSE_FACTOR_FIELD` (env) — ruta al factor en el JSON de respuesta (ej. `"data.factor"` o `"renovacion.tasa"`)
+- **Timeout por llamada:** 5 segundos
+- **Valor esperado:** el mismo factor del Excel (`TASA FINAL`), normalizado a 8 decimales
+- **Placas `No Renovar`:** el motor debería devolver un indicador de bloqueo — el campo esperado y su valor se configuran con `TARIFF_BLOCKED_VALUE` (env)
+
+**Resultado por placa:**
+- `ok` — factor devuelto por la API coincide con el Excel
+- `failed` — factor difiere, la API devuelve error HTTP, o timeout
+
+**Resultado del check:**
+- `ok` si `failed == 0`
+- `failed` si `failed >= 1` (se reportan todas las discrepancias)
+
+**Detalle en el callback:**
+
+```json
+{
+  "name": "plate_sample_api",
+  "status": "failed",
+  "detail": "2/50 plates returned wrong factor from tariff API",
+  "sample_size": 50,
+  "passed": 48,
+  "failed": 2,
+  "failures": [
+    {"plate": "ABC-1234", "chasis": "9BWZZZ377VT004251",
+     "expected_factor": "0.85000000", "api_factor": "0.90000000",
+     "http_status": 200},
+    {"plate": "XYZ-9999", "chasis": "9BWZZZ377VT009999",
+     "expected_factor": "0.72000000", "api_factor": null,
+     "http_status": 500, "error": "internal server error"}
+  ]
+}
+```
+
+---
+
 ### Resumen de checks por tipo
 
 | Check | `ren-data` | `rules` | Tipo | Fuente |
@@ -356,7 +416,10 @@ WHERE  <RENEWAL_MIGRATION_ID_FIELD> = '<migration_name>'
 | `row_count` | ✓ | — | SQL | conteo total en DB |
 | `no_renovar_count` | ✓ | — | SQL | campo `renewal_blocked` en DB |
 | `entity_rows` | — | ✓ | SQL | campo `entity` en DB |
-| `plate_sample` | ✓ | — | SQL | muestra aleatoria del Excel adjunto vs DB |
+| `plate_sample` | ✓ | — | SQL | muestra aleatoria del Excel vs BD |
+| `plate_sample_api` | ✓ | — | HTTP | misma muestra vs endpoint de tarificación |
+
+Los checks 6 y 7 usan **la misma muestra** de `sample_size` placas.
 
 El resultado global es `approved` si **todos** los checks pasan.
 Si alguno falla, el resultado es `rejected`.
@@ -389,6 +452,16 @@ Nunca se hardcodean en el código.
 | `RENEWAL_PLATE_FIELD` | Campo de número de placa en `RENEWAL_TABLE` | `plate_number` |
 | `RENEWAL_FACTOR_FIELD` | Campo de factor de renovación en `RENEWAL_TABLE` | `factor` |
 | `QA_SAMPLE_SIZE` | Placas a muestrear por defecto (default `50`, máx `200`) | `50` |
+
+### API de tarificación — `ren-data`
+
+| Variable | Descripción | Ejemplo |
+|---|---|---|
+| `TARIFF_API_PATH` | Path del endpoint de cotización/tarificación | `/api/v1/renovacion/tarificar` |
+| `TARIFF_PLATE_FIELD` | Campo de placa en el body del request | `placa` |
+| `TARIFF_CHASIS_FIELD` | Campo de chasis en el body del request | `chasis` |
+| `TARIFF_RESPONSE_FACTOR_FIELD` | Ruta al factor en la respuesta JSON (notación punto) | `data.factor` |
+| `TARIFF_BLOCKED_VALUE` | Valor que indica "No Renovar" en la respuesta de la API | `NO_RENOVAR` |
 
 ### Esquema de base de datos — `rules`
 
@@ -553,12 +626,14 @@ docker run -v qa-agent-data:/data ... ov-qa-agent:latest
      b. Lee todas las filas del Excel (CHASIS, TASA FINAL, PLACAS)
      c. Selecciona sample_size placas al azar con placa no vacía
      d. Ejecuta checks (todos acumulados antes de resolver el resultado global):
-          i.   flyway_history   → SQL
-          ii.  endpoint_health  → HTTP
-          iii. row_count        → SQL  (solo ren-data)
-          iv.  no_renovar_count → SQL  (solo ren-data)
-          v.   entity_rows      → SQL  (solo rules)
-          vi.  plate_sample     → SQL por cada placa muestreada (solo ren-data)
+          i.   flyway_history    → SQL
+          ii.  endpoint_health   → HTTP
+          iii. row_count         → SQL  (solo ren-data)
+          iv.  no_renovar_count  → SQL  (solo ren-data)
+          v.   entity_rows       → SQL  (solo rules)
+          vi.  plate_sample      → SQL por cada placa de la muestra (solo ren-data)
+          vii. plate_sample_api  → HTTP al endpoint de tarificación por cada placa
+                                   de la misma muestra (solo ren-data)
 6. QA Agent construye resultado agregado (approved / rejected)
 7. QA Agent persiste resultado en SQLite (incluyendo detalle de fallos por placa)
 8. QA Agent hace POST callback a n8n con resultado completo
@@ -593,6 +668,11 @@ docker run -d \
   -e RULES_ENTITY_FIELD=entity \
   -e RULES_MIGRATION_ID_FIELD=migration_id \
   -e QA_SAMPLE_SIZE=50 \
+  -e TARIFF_API_PATH=/api/v1/renovacion/tarificar \
+  -e TARIFF_PLATE_FIELD=placa \
+  -e TARIFF_CHASIS_FIELD=chasis \
+  -e TARIFF_RESPONSE_FACTOR_FIELD=data.factor \
+  -e TARIFF_BLOCKED_VALUE=NO_RENOVAR \
   -e N8N_CALLBACK_URL=https://n8n.genai.zurich.com/webhook/qa-result \
   -v qa-agent-data:/data \
   -p 5000:5000 \
