@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# start-agent.sh — levanta el Code Agent (ov-code-agent:latest)
+# 2-start-agent.sh — levanta el Code Agent (ov-code-agent:latest)
 #
 # Uso:
-#   PAT=<azure-pat> ./start-agent.sh
+#   PAT=<azure-pat> ./2-start-agent.sh
 #   (o define PAT en .env.local)
 
 set -euo pipefail
@@ -12,7 +12,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 : "${PAT:?set PAT in .env.local or environment}"
 : "${AZURE_USERNAME:?set AZURE_USERNAME in .env.local or environment}"
-: "${REPO_HOST_PATH:?set REPO_HOST_PATH in .env.local or environment}"
 
 docker run -d \
   --name ov-code-agent \
@@ -22,7 +21,6 @@ docker run -d \
   -e GIT_USERNAME="${AZURE_USERNAME}" \
   -e GIT_PAT="${PAT}" \
   -e REPO_PATH=/repos/ov-arizona-backend-ecuador \
-  -v "${REPO_HOST_PATH}:/repos/ov-arizona-backend-ecuador" \
   ov-code-agent:latest
 
 echo "Levantando..."

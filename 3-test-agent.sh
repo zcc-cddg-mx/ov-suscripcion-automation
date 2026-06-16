@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# test-agent.sh — prueba el endpoint POST /run con payloads ren-data
+# 3-test-agent.sh — prueba el endpoint POST /run con payloads ren-data
 #
 # Uso:
-#   ./test-agent.sh
+#   ./3-test-agent.sh
 
 set -euo pipefail
 
