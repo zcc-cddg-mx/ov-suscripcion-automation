@@ -46,6 +46,15 @@
 
 ---
 
+## Pendiente — QA Agent (nuevo agente)
+
+- [x] **Contrato de diseño** — `architecture/qa_agent_contract.md` generado con API, checks, callback, variables de entorno y dudas pendientes con backend
+- [ ] **Confirmar esquema de BD DEV** — nombre de tablas, campos `migration_id` / `renewal_blocked` con equipo backend (ver §10 del contrato)
+- [ ] **Implementar QA Agent** — container Python, endpoints `/validate` `/status` `/tasks` `/health`, checks SQL + HTTP, callback n8n con retry
+- [ ] **Configurar en n8n** — wiring: pipeline DEV completado → POST /validate → esperar callback → actualizar Jira
+
+---
+
 ## Recomendaciones futuras
 
 - [ ] **Autenticación en la API** — agregar un header `X-Agent-Token` o API key para que solo n8n pueda llamar al agente (evitar ejecuciones no autorizadas en producción)

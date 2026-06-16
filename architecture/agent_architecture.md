@@ -15,6 +15,7 @@ Jira (webhook)
   → Azure DevOps — ejecuta pipeline → deploy a DEV (red interna)
   → n8n — dispara validación
   → QA Agent (container en SERVICIOSIAS) — valida endpoints + datos → responde aprobado/rechazado
+       contrato: architecture/qa_agent_contract.md
   → n8n — actualiza Jira (link PR + resultado QA) → cierra ticket si aprobado
 ```
 
