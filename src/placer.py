@@ -134,10 +134,7 @@ def git_add_commit_push(
     msg = f"[{ticket_id}] {description}"
     subprocess.run(["git", "-C", str(abs_root), "commit", "-m", msg], check=True)
     log("GIT", f"pushing feature branch '{branch_name}' to origin")
-    subprocess.run(
-        ["git", "-C", str(abs_root), "push", "--set-upstream", "origin", branch_name],
-        check=True,
-    )
+    _push_branch(str(abs_root), branch_name)
     result = subprocess.run(
         ["git", "-C", str(abs_root), "rev-parse", "HEAD"],
         check=True, capture_output=True, text=True,
