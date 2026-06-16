@@ -10,10 +10,13 @@ config.json
 
 # Docker build artifacts — not committed, must be present locally to build the image
 gradle-6.8.3.zip
-gradle-plugins/
 
 # local-repo Maven: directorio gitignoreado, distribuir via gradle/local-repo.tar.gz
 gradle/local-repo/
+gradle/plugins/
+gradle/plugins/com.adarshr
+gradle/plugins/com.gorylenko.gradle-git-properties
+gradle/plugins/maven2
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
