@@ -1,0 +1,623 @@
+# hand crafted with love
+
+# version: "3.7"
+
+x-eureka-env: &eureka-env
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+  EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS: "30"
+  EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS: "90"
+  EUREKA_CLIENT_EUREKA_SERVER_CONNECT_TIMEOUT_SECONDS: "10"
+  EUREKA_CLIENT_EUREKA_SERVER_READ_TIMEOUT_SECONDS: "30"
+
+x-common-settings: &common-settings
+  #extra_hosts:
+  #- dev-gioficinaviertual.zurichseguros.com.ec:10.113.80.6
+  #- serviciosias.zurichseguros.com.ec:10.119.106.16
+  #- uat-oficinavirtual.zurichseguros.com.ec:10.113.84.8
+  dns_search:
+    - uat.arizona
+  restart: always
+  domainname: uat.arizona
+  env_file: arizona.env
+  #deploy:
+  #    restart_policy:
+  #        condition: on-failure
+  #        delay: 5s
+  #        max_attempts: 3
+  #        window: 30s
+  entrypoint: java
+  environment:
+    <<: *eureka-env
+  #volumes:
+  #- /etc/timezone:/etc/timezone:ro
+  #- /etc/localtime:/etc/localtime:ro
+  #- /opt/arizona/uat/m2:/m2:ro
+
+services:
+
+  ams-config-server_srv:
+    <<: *common-settings
+    hostname: ams-config-server
+    image: zurcontainerreg.azurecr.io/ov-ams-config-server:${CONFIG_SERVER_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx256m
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-config-server.jar
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8888/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      arizona:
+        aliases:
+          - ams-config-server.uat.arizona
+
+  ams-eureka_srv:
+    <<: *common-settings
+    hostname: ams-eureka
+    image: zurcontainerreg.azurecr.io/ov-ams-eureka:${EUREKA_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx384m
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT} -Dlogging.level.com.netflix.eureka.cluster.ReplicationTaskProcessor=OFF
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-eureka.jar
+    mem_limit: 768m
+    mem_reservation: 384m
+    cpus: "0.25"
+    networks:
+      arizona:
+        aliases:
+          - ams-eureka.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-eureka-slave_srv:
+    <<: *common-settings
+    hostname: ams-eureka-slave
+    image: zurcontainerreg.azurecr.io/ov-ams-eureka:${EUREKA_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-eureka.jar
+    mem_limit: 1400m   # corregido: era 900m con Xmx=1g — OOMKill inmediato
+    mem_reservation: 1g
+    cpus: "0.25"
+    networks:
+      arizona:
+        aliases:
+          - ams-eureka-slave.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-zuul_srv:
+    <<: *common-settings
+    hostname: ams-zuul
+    image: zurcontainerreg.azurecr.io/ov-ams-zuul:${ZUUL_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-zuul.jar
+    mem_limit: 1400m   # corregido: era 1000m con Xmx=1g — OOMKill inmediato
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-zuul.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-authorization_srv:
+    <<: *common-settings
+    hostname: ams-authorization
+    image: zurcontainerreg.azurecr.io/ov-ams-authorization:${AUTHORIZATION_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT} -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5010
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-authorization.jar
+    mem_limit: 1400m
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-keycloak.uat.arizona
+    ports:
+      - 5010:5010
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-user_srv:
+    <<: *common-settings
+    hostname: ams-user
+    image: zurcontainerreg.azurecr.io/ov-ams-user:${USER_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5060
+      -jar /ams-user.jar
+    ports:
+      - 5060:5060
+    mem_limit: 1500m
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-user.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-party_srv:
+    <<: *common-settings
+    hostname: ams-party
+    image: zurcontainerreg.azurecr.io/ov-ams-party:${PARTY_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-party.jar
+    mem_limit: 1700m
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-party.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-release_srv:
+    <<: *common-settings
+    hostname: ams-release
+    image: zurcontainerreg.azurecr.io/ov-ams-release:${RELEASE_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-release.jar
+    mem_limit: 1400m   # corregido: era 1300m (21%) — ajustado a 25% de margen
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-release.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-policy_srv:
+    <<: *common-settings
+    hostname: ams-policy
+    image: zurcontainerreg.azurecr.io/ov-ams-policy:${POLICY_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT} -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true -Dlogging.level.org.springframework.jms.listener.DefaultMessageListenerContainer=DEBUG
+      -jar /ams-policy.jar
+    ports:
+      - 5005:5005
+    volumes:
+      - /opt/app/certs/client_private.pem:/app/certs/client_private.pem:ro
+      - /opt/app/certs/server_public.pem:/app/certs/server_public.pem:ro
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpus: "1.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-policy.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-rule_srv:
+    <<: *common-settings
+    hostname: ams-rule
+    image: zurcontainerreg.azurecr.io/ov-ams-rule:${RULE_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT} -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5015
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-rule.jar
+    ports:
+      - 5015:5015
+    mem_limit: 1800m
+    mem_reservation: 1g
+    cpus: "1.00"
+    networks:
+      arizona:
+        aliases:
+          - ams-rule.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-foundation:
+    <<: *common-settings
+    hostname: ams-foundation
+    image: zurcontainerreg.azurecr.io/ov-ams-foundation:${FOUNDATION_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-foundation.jar
+    mem_limit: 1400m   # corregido: era 1300m (21%) — ajustado a 25% de margen
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-foundation.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-repo_srv:
+    <<: *common-settings
+    hostname: ams-repo
+    image: zurcontainerreg.azurecr.io/ov-ams-repo:${REPO_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-repo.jar
+    volumes:
+      - /opt/arizona/uat/ams-repo/arizona_shared_dir:/arizona_shared_dir
+    mem_limit: 1400m   # corregido: era 1300m (21%) — ajustado a 25% de margen
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-repo.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-document_srv:
+    <<: *common-settings
+    hostname: ams-document
+    image: zurcontainerreg.azurecr.io/ov-ams-document:${DOCUMENT_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-document.jar
+    mem_limit: 1800m
+    mem_reservation: 1g
+    cpus: "1.00"
+    networks:
+      arizona:
+        aliases:
+          - ams-document.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-referral_srv:
+    <<: *common-settings
+    hostname: ams-referral
+    image: zurcontainerreg.azurecr.io/ov-ams-referral:${REFERRAL_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-referral.jar
+    mem_limit: 1400m
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-referral.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-accounting_srv:
+    <<: *common-settings
+    hostname: ams-accounting
+    image: zurcontainerreg.azurecr.io/ov-ams-accounting:${ACCOUTING_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-accounting.jar
+    mem_limit: 1500m
+    mem_reservation: 1g
+    cpus: "1.00"
+    networks:
+      arizona:
+        aliases:
+          - ams-accounting.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-automation_srv:
+    <<: *common-settings
+    hostname: ams-automation
+    image: zurcontainerreg.azurecr.io/ov-ams-automation:${AUTOMATION_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-automation.jar
+    #ports:
+    #   - 5010:5010
+    mem_limit: 1600m
+    mem_reservation: 1g
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-automation.uat.arizona   # corregido: era ams-rule.automation.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-claim_srv:
+    <<: *common-settings
+    hostname: ams-claim
+    image: zurcontainerreg.azurecr.io/ov-ams-claim:${CLAIM_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx512m
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-claim.jar
+    mem_limit: 1024m
+    mem_reservation: 512m
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - ams-claim.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-reinsurance:
+    <<: *common-settings
+    hostname: ams-reinsurance
+    image: zurcontainerreg.azurecr.io/ov-ams-reinsurance:${REINSURANCE_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx512m
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+      -jar /ams-reinsurance.jar
+    mem_limit: 1100m
+    mem_reservation: 512m
+    cpus: "1.00"
+    networks:
+      arizona:
+        aliases:
+          - ams-reinsurance.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  ams-data-view_srv:
+    <<: *common-settings
+    hostname: ams-data-view
+    image: zurcontainerreg.azurecr.io/ov-ams-data-view:${DATA_VIEW_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Duser.timezone=America/Guayaquil -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx1g
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -Dorg.apache.activemq.kahaDB.files.skipMetadataUpdate=true -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5080
+      -jar /ams-data-view.jar
+    ports:
+      - 5080:5080
+    volumes:
+      - /opt/arizona/uat/ams-overview/idxLocation:/idxLocation
+    mem_limit: 1800m
+    mem_reservation: 1g
+    cpus: "1.00"
+    networks:
+      arizona:
+        aliases:
+          - ams-data-view.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  restat_srv:
+    <<: *common-settings
+    hostname: restat
+    image: zurcontainerreg.azurecr.io/ov-restat:${RESTAT_VERSION}
+    command: >
+      -Dlogging.level.root=INFO
+      -Djava.net.preferIPv4Stack=true
+      -Djava.net.preferIPv4Addresses=true
+      -Xmx768m
+      -Djava.security.egd=file:/dev/./urandom
+      -Darizona.db.vendor.select=${ARIZONA_DB_VENDOR_SELECT}
+      -Dthin.root="/m2"
+      -Dsun.reflect.inflationThreshold=2147483647
+      -jar /restat.jar
+    mem_limit: 1100m
+    mem_reservation: 768m
+    cpus: "0.25"
+    networks:
+      arizona:
+        aliases:
+          - restat.uat.arizona
+    depends_on:
+      ams-config-server_srv:
+        condition: service_healthy
+
+  voc:
+    dns_search:
+      - uat.arizona
+    restart: always
+    domainname: uat.arizona
+    env_file: arizona.env
+    hostname: voc
+    image: zurcontainerreg.azurecr.io/ov-voc:${VOC_VERSION}
+    command: >
+      -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5071
+      -jar /app/virtual-office-connector-0.0.1-SNAPSHOT.jar
+    ports:
+      - 5071:5071
+    mem_limit: 900m
+    mem_reservation: 650m
+    cpus: "0.50"
+    networks:
+      arizona:
+        aliases:
+          - voc.uat.arizona
+
+  client-validation:
+    restart: always
+    hostname: client-validation
+    image: zurcontainerreg.azurecr.io/client-validation-ov-api:0.0.1-uat
+    environment:
+      - ARIZONA_SERVICE_NAME=client-validation
+      - ARIZONA_ENSURANCE_USER=aizona
+      - ARIZONA_ENSURANCE_PASS=aizona
+      - ARIZONA_POLICY_ENSURANCE_CLIENT_VALIDATIOND_DB=10.225.196.5:1521/colaixe
+    ports:
+      - 3000:3000
+    mem_limit: 256m
+    mem_reservation: 128m
+    cpus: "0.25"
+    networks:
+      arizona:
+        aliases:
+          - ams-client-validation.uat.arizona
+
+networks:
+  arizona:
+    name: arizona
+    external: true # do not remove network when stopping composition
+ 
