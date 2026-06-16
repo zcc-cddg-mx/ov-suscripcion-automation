@@ -78,57 +78,60 @@ def health():
     return jsonify({"status": "ok", "service": "code-agent"})
 
 
-def _parse_request() -> tuple[dict, str | None]:
-    """Extract payload dict and optional saved file path from the request.
+_REQUIRED_FIELDS = ("file", "command", "ticket", "year", "month")
 
-    Supports two content types:
-    - multipart/form-data: text fields become payload keys; 'file' field is saved to disk.
-    - application/json: parsed directly, no file upload.
 
-    Returns (payload_dict, input_path_or_None).
+def _parse_request() -> tuple[dict, str]:
+    """Parse multipart/form-data request, validate required fields, save uploaded file.
+
+    Required fields: file, command, ticket, year, month.
+    Raises ValueError with a descriptive message if any are missing.
+    Returns (payload_dict, input_path).
     """
-    if request.content_type and request.content_type.startswith("multipart/form-data"):
-        payload = {k: v for k, v in request.form.items()}
-        # Coerce numeric and boolean fields from form strings
-        for field in ("year", "month"):
-            if field in payload:
-                payload[field] = int(payload[field])
-        for field in ("commit", "compile"):
-            if field in payload:
-                payload[field] = payload[field].lower() in ("true", "1", "yes")
+    if not (request.content_type and request.content_type.startswith("multipart/form-data")):
+        raise ValueError("Content-Type must be multipart/form-data")
 
-        input_path = None
-        file = request.files.get("file")
-        if file and file.filename:
-            _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-            ticket_safe = re.sub(r"[^A-Za-z0-9_-]", "_", payload.get("ticket", "unknown"))
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-            safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", Path(file.filename).name)
-            dest = _UPLOADS_DIR / f"{ticket_safe}_{timestamp}_{safe_name}"
-            file.save(str(dest))
-            input_path = str(dest)
-            log("RECV", f"file saved → {dest.name}")
+    payload = {k: v for k, v in request.form.items()}
 
-        return payload, input_path
+    # Validate all required fields up front — accumulate all missing ones
+    missing = []
+    for field in _REQUIRED_FIELDS:
+        if field == "file":
+            f = request.files.get("file")
+            if not f or not f.filename:
+                missing.append("file")
+        elif not payload.get(field):
+            missing.append(field)
+    if missing:
+        raise ValueError(f"Missing required field(s): {', '.join(missing)}")
 
-    payload = request.get_json(silent=True) or {}
-    return payload, None
+    # Coerce numeric and boolean fields
+    payload["year"] = int(payload["year"])
+    payload["month"] = int(payload["month"])
+    for field in ("commit", "compile"):
+        if field in payload:
+            payload[field] = payload[field].lower() in ("true", "1", "yes")
+
+    # Save uploaded file
+    file = request.files["file"]
+    _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    ticket_safe = re.sub(r"[^A-Za-z0-9_-]", "_", payload["ticket"])
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", Path(file.filename).name)
+    dest = _UPLOADS_DIR / f"{ticket_safe}_{timestamp}_{safe_name}"
+    file.save(str(dest))
+    log("RECV", f"file saved → {dest.name}")
+
+    payload["input"] = str(dest)
+    return payload, str(dest)
 
 
 @app.post("/run")
 def run():
-    payload, input_path = _parse_request()
-    if not payload:
-        return jsonify({"status": "error", "error": "Request body must be JSON or multipart/form-data"}), 400
-
-    # For multipart requests the file path replaces the 'input' field
-    if input_path:
-        payload["input"] = input_path
-
-    if not payload.get("command"):
-        return jsonify({"status": "error", "error": "Missing required field: 'command'"}), 400
-    if not payload.get("ticket"):
-        return jsonify({"status": "error", "error": "Missing required field: 'ticket'"}), 400
+    try:
+        payload, input_path = _parse_request()
+    except ValueError as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 400
 
     task_id = str(uuid.uuid4())[:8]
     now = _now_iso()
