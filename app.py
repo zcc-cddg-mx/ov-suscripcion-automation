@@ -7,18 +7,25 @@ Exposes four endpoints:
   GET  /status/<task_id>    — poll task status
   GET  /tasks               — list recent tasks (last 50, newest first)
 
-POST /run request body:
+POST /run — multipart/form-data:
 
-  Tipo 1 — ren-data:
-    {"command": "ren-data", "ticket": "ZNRX-67108",
-     "input": "requirements/.../baseticketMES.xlsx",
-     "year": 2026, "month": 8,
-     "commit": true, "compile": true}
+  Tipo 1 — ren-data (archivo Excel adjunto):
+    file     = <baseticketMES.xlsx>
+    command  = ren-data
+    ticket   = ZNRX-67108
+    year     = 2026
+    month    = 8
+    commit   = true
+    compile  = true
 
-  Tipo 2 — rules:
+  Tipo 2 — rules (JSON, sin archivo):
+    Content-Type: application/json
     {"command": "rules", "ticket": "RITM2500000",
      "input": "data/raw.xlsx", "entity": "VHPlanRules",
      "commit": true, "compile": true}
+
+  El archivo recibido se guarda en /data/uploads/<ticket>_<timestamp>_<filename>
+  antes de encolar la tarea. La ruta queda registrada en SQLite (input_path).
 
 POST /run response — always 202 Accepted (or 400 on malformed body):
   {"status": "queued",    "task_id": "a1b2c3d4"}
@@ -35,12 +42,16 @@ Mount /data as a Docker volume to keep history across container restarts.
 from __future__ import annotations
 
 import os
+import re
 import threading
 import traceback
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from flask import Flask, jsonify, request
+
+_UPLOADS_DIR = Path(os.environ.get("UPLOADS_DIR", "/data/uploads"))
 
 from main import run_payload
 from src.build_check import BuildCheckError
@@ -67,11 +78,57 @@ def health():
     return jsonify({"status": "ok", "service": "code-agent"})
 
 
+def _parse_request() -> tuple[dict, str | None]:
+    """Extract payload dict and optional saved file path from the request.
+
+    Supports two content types:
+    - multipart/form-data: text fields become payload keys; 'file' field is saved to disk.
+    - application/json: parsed directly, no file upload.
+
+    Returns (payload_dict, input_path_or_None).
+    """
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        payload = {k: v for k, v in request.form.items()}
+        # Coerce numeric and boolean fields from form strings
+        for field in ("year", "month"):
+            if field in payload:
+                payload[field] = int(payload[field])
+        for field in ("commit", "compile"):
+            if field in payload:
+                payload[field] = payload[field].lower() in ("true", "1", "yes")
+
+        input_path = None
+        file = request.files.get("file")
+        if file and file.filename:
+            _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+            ticket_safe = re.sub(r"[^A-Za-z0-9_-]", "_", payload.get("ticket", "unknown"))
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+            safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", Path(file.filename).name)
+            dest = _UPLOADS_DIR / f"{ticket_safe}_{timestamp}_{safe_name}"
+            file.save(str(dest))
+            input_path = str(dest)
+            log("RECV", f"file saved → {dest.name}")
+
+        return payload, input_path
+
+    payload = request.get_json(silent=True) or {}
+    return payload, None
+
+
 @app.post("/run")
 def run():
-    payload = request.get_json(silent=True)
+    payload, input_path = _parse_request()
     if not payload:
-        return jsonify({"status": "error", "error": "Request body must be JSON"}), 400
+        return jsonify({"status": "error", "error": "Request body must be JSON or multipart/form-data"}), 400
+
+    # For multipart requests the file path replaces the 'input' field
+    if input_path:
+        payload["input"] = input_path
+
+    if not payload.get("command"):
+        return jsonify({"status": "error", "error": "Missing required field: 'command'"}), 400
+    if not payload.get("ticket"):
+        return jsonify({"status": "error", "error": "Missing required field: 'ticket'"}), 400
 
     task_id = str(uuid.uuid4())[:8]
     now = _now_iso()
@@ -88,6 +145,7 @@ def run():
             "task_id": task_id,
             "ticket": payload.get("ticket"),
             "command": payload.get("command"),
+            "input_path": input_path,
             "status": "rejected",
             "error": f"Task {active.get('task_id')} ({active.get('ticket')}) is already running",
             "active_task": active,
@@ -101,6 +159,7 @@ def run():
         "task_id": task_id,
         "ticket": payload.get("ticket"),
         "command": payload.get("command"),
+        "input_path": input_path,
         "status": "queued",
         "created_at": now,
     }

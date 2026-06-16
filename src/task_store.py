@@ -18,26 +18,27 @@ _lock = threading.Lock()
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS tasks (
-    task_id     TEXT PRIMARY KEY,
-    ticket      TEXT,
-    status      TEXT NOT NULL,
-    command     TEXT,
-    branch      TEXT,
-    aux_branch  TEXT,
-    commit_id   TEXT,
-    repo        TEXT,
+    task_id      TEXT PRIMARY KEY,
+    ticket       TEXT,
+    status       TEXT NOT NULL,
+    command      TEXT,
+    input_path   TEXT,
+    branch       TEXT,
+    aux_branch   TEXT,
+    commit_id    TEXT,
+    repo         TEXT,
     build_status TEXT,
-    summary     TEXT,
-    error       TEXT,
-    active_task TEXT,
-    created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
+    summary      TEXT,
+    error        TEXT,
+    active_task  TEXT,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
 )
 """
 
 _JSON_FIELDS = {"active_task"}
 _ALL_FIELDS = [
-    "task_id", "ticket", "status", "command",
+    "task_id", "ticket", "status", "command", "input_path",
     "branch", "aux_branch", "commit_id", "repo",
     "build_status", "summary", "error", "active_task",
     "created_at", "updated_at",
