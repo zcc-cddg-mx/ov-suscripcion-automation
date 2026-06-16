@@ -175,7 +175,10 @@ sleep 0.5  # wait for server to bind
 
 # Restart agent with callback URL pointing to this server
 # (works when agent runs on same host; for Docker use host.docker.internal or host IP)
-HOST_IP=$(python3 -c "import socket; print(socket.gethostbyname(socket.gethostname()))")
+# Resolve host IP as seen from inside the container (docker bridge gateway)
+HOST_IP=$(docker inspect ov-code-agent --format '{{json .NetworkSettings.Networks}}' 2>/dev/null \
+  | python3 -c "import sys,json; nets=json.load(sys.stdin); print(list(nets.values())[0]['Gateway'])" 2>/dev/null \
+  || echo "172.17.0.1")
 CALLBACK_URL="http://${HOST_IP}:${CALLBACK_PORT}/callback"
 
 echo "Callback server PID=${CALLBACK_PID} listening on ${CALLBACK_URL}"

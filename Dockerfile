@@ -14,6 +14,9 @@
 FROM ov-agent-base:latest
 
 WORKDIR /app
+COPY requirements.txt .
+RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
 COPY . .
 RUN chmod +x /app/docker-entrypoint.sh
 
