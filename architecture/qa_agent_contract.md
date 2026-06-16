@@ -1,6 +1,6 @@
 # QA Agent — Contrato de diseño
 
-> Versión: 1.0 — 2026-06-15  
+> Versión: 1.1 — 2026-06-16  
 > Autor: equipo OV Suscripciones  
 > Destinatario: equipo de desarrollo del QA Agent
 
@@ -26,10 +26,12 @@ Jira (webhook)
 ```
 
 **Resumen de responsabilidades:**
+- Recibir el archivo Excel de negocio (`baseticketMES.xlsx`) adjunto por n8n
 - Verificar que el servicio DEV responde correctamente tras el deploy
 - Verificar que la migración Flyway fue aplicada en la base de datos
-- Verificar la integridad de los datos de negocio insertados
-- Devolver a n8n un resultado estructurado (aprobado / rechazado + detalle)
+- Verificar la integridad de los datos de negocio insertados (conteo total + muestra aleatoria de 50 placas)
+- Verificar individualmente por placa que el factor y el estado de bloqueo coinciden con el Excel
+- Devolver a n8n un resultado estructurado (aprobado / rechazado + detalle por check y por placa)
 
 El QA Agent **no hace push**, **no crea PRs**, **no modifica código**.
 Su única acción externa es leer (HTTP GET + SQL SELECT).
@@ -56,40 +58,32 @@ El QA Agent expone una API HTTP mínima, idéntica en estilo al Code Agent.
 
 ### 3.1 `POST /validate` — encolar validación
 
-**Content-Type:** `application/json`
+**Content-Type:** `multipart/form-data`
 
-#### Body (enviado por n8n tras detectar deploy exitoso)
+Igual que el `POST /run` del Code Agent: n8n adjunta el archivo Excel de negocio
+junto con los campos de texto del formulario. El archivo se guarda en `/data/uploads/`
+antes de encolar la tarea y se usa para construir la muestra de placas (check 6).
 
-```json
-{
-  "ticket":         "ZNRX-67108",
-  "command":        "ren-data",
-  "module":         "ams-policy",
-  "migration_name": "V2026_06_15_14_30_00__ZNRX_67108_VH_ren_data_jun",
-  "branch":         "feature/ZNRX_67108_renov_junio",
-  "aux_branch":     "feature/ZNRX_67108_renov_junio_developer_auxiliar",
-  "commit_id":      "abc123def456",
-  "year":           2026,
-  "month":          6,
-  "row_count":      1342,
-  "callback_url":   "https://n8n.genai.zurich.com/webhook/qa-result"
-}
-```
+#### Campos del formulario
 
 | Campo | Tipo | Requerido | Descripción |
 |---|---|---|---|
-| `ticket` | string | ✓ | ID del ticket Jira |
-| `command` | string | ✓ | `ren-data` o `rules` |
-| `module` | string | ✓ | `ams-policy` o `ams-rule` |
-| `migration_name` | string | ✓ | Nombre completo del archivo Flyway sin extensión |
-| `branch` | string | ✓ | Rama feature creada por el Code Agent |
-| `aux_branch` | string | ✓ | Rama auxiliar |
-| `commit_id` | string | ✓ | Hash del commit con los archivos generados |
-| `year` | int | ✓ para `ren-data` | Año de los vencimientos |
-| `month` | int | ✓ para `ren-data` | Mes de los vencimientos |
-| `row_count` | int | — | Filas de negocio que debería haber en la migración (para contraste) |
-| `entity` | string | ✓ para `rules` | Nombre de la entidad (ej. `VHPlanRules`) |
-| `callback_url` | string | — | URL donde n8n espera el resultado; si ausente, usar `N8N_CALLBACK_URL` del env |
+| `file` | archivo | ✓ | Excel de negocio (`baseticketMES.xlsx`) — misma fuente que usó el Code Agent |
+| `ticket` | texto | ✓ | ID del ticket Jira |
+| `command` | texto | ✓ | `ren-data` o `rules` |
+| `module` | texto | ✓ | `ams-policy` o `ams-rule` |
+| `migration_name` | texto | ✓ | Nombre completo del archivo Flyway sin extensión |
+| `branch` | texto | ✓ | Rama feature creada por el Code Agent |
+| `aux_branch` | texto | ✓ | Rama auxiliar |
+| `commit_id` | texto | ✓ | Hash del commit con los archivos generados |
+| `year` | número | ✓ para `ren-data` | Año de los vencimientos |
+| `month` | número | ✓ para `ren-data` | Mes de los vencimientos |
+| `entity` | texto | ✓ para `rules` | Nombre de la entidad (ej. `VHPlanRules`) |
+| `sample_size` | número | — | Placas a muestrear al azar (default `50`, máx `200`) |
+| `callback_url` | texto | — | URL donde n8n espera el resultado; si ausente, usar `N8N_CALLBACK_URL` del env |
+
+Campos requeridos: `file`, `ticket`, `command`, `module`, `migration_name`.
+Campos requeridos condicionales: `year` + `month` para `ren-data`; `entity` para `rules`.
 
 #### Respuesta inmediata — 202 Accepted
 
@@ -99,10 +93,10 @@ El QA Agent expone una API HTTP mínima, idéntica en estilo al Code Agent.
 
 La validación corre en background; el resultado se envía vía callback (ver §4).
 
-#### Respuesta 400 (campos requeridos faltantes)
+#### Respuesta 400 (campos o archivo faltantes)
 
 ```json
-{"status": "error", "error": "Missing required field(s): ticket, module"}
+{"status": "error", "error": "Missing required field(s): file, migration_name"}
 ```
 
 #### Respuesta 202 rechazada (ya hay una validación en curso)
@@ -170,12 +164,14 @@ Al completar la validación (resultado `approved` o `rejected`), el QA Agent hac
   "branch":         "feature/ZNRX_67108_renov_junio",
   "aux_branch":     "feature/ZNRX_67108_renov_junio_developer_auxiliar",
   "commit_id":      "abc123def456",
-  "summary":        "All 4 checks passed — migration applied, 1342 rows validated",
+  "summary":        "All 5 checks passed — migration applied, 1342 rows validated, 50/50 plate sample OK",
   "checks":         [
     {"name": "flyway_history",   "status": "ok", "detail": "migration recorded in schema_version"},
     {"name": "endpoint_health",  "status": "ok", "detail": "GET /actuator/health → 200"},
     {"name": "row_count",        "status": "ok", "detail": "1342 rows found, expected 1342"},
-    {"name": "no_renovar_count", "status": "ok", "detail": "7 'No Renovar' rows found"}
+    {"name": "no_renovar_count", "status": "ok", "detail": "7 'No Renovar' rows found"},
+    {"name": "plate_sample",     "status": "ok", "detail": "50/50 plates matched — factor and renewal_blocked correct",
+     "sample_size": 50, "passed": 50, "failed": 0}
   ],
   "completed_at":   "2026-06-15T14:21:30+00:00"
 }
@@ -199,7 +195,15 @@ Al completar la validación (resultado `approved` o `rejected`), el QA Agent hac
     {"name": "row_count",        "status": "failed",
      "detail": "found 1300 rows, expected 1342 — 42 rows missing"},
     {"name": "no_renovar_count", "status": "failed",
-     "detail": "found 0 'No Renovar' rows, expected >= 1"}
+     "detail": "found 0 'No Renovar' rows, expected >= 1"},
+    {"name": "plate_sample",     "status": "failed",
+     "detail": "3/50 plates mismatched",
+     "sample_size": 50, "passed": 47, "failed": 3,
+     "failures": [
+       {"plate": "ABC-1234", "field": "factor",          "expected": "0.85",  "found": "0.90"},
+       {"plate": "XYZ-9999", "field": "factor",          "expected": "0.72",  "found": null},
+       {"plate": "DEF-5678", "field": "renewal_blocked", "expected": "Yes",   "found": "No"}
+     ]}
   ],
   "completed_at":   "2026-06-15T14:21:30+00:00"
 }
@@ -307,15 +311,52 @@ WHERE <RULES_ENTITY_FIELD> = '<entity>'      -- env: RULES_ENTITY_FIELD
 
 ---
 
+### 5.6 Check 6 — `plate_sample` (SQL) — solo `ren-data`
+
+Verifica que los datos de una muestra aleatoria de placas coinciden exactamente
+con los valores del Excel de negocio recibido en el request.
+
+**Algoritmo:**
+
+1. Leer el Excel recibido en `file` (misma lógica que el Code Agent: columnas `CHASIS`, `TASA FINAL`, `PLACAS`)
+2. Filtrar únicamente las filas con placa no vacía (`PLACAS`)
+3. Seleccionar `sample_size` placas al azar sin reemplazo (`random.sample`)
+4. Por cada placa, ejecutar:
+
+```sql
+SELECT <RENEWAL_FACTOR_FIELD>,         -- env: RENEWAL_FACTOR_FIELD
+       <RENEWAL_BLOCKED_FIELD>          -- env: RENEWAL_BLOCKED_FIELD
+FROM   <RENEWAL_TABLE>
+WHERE  <RENEWAL_MIGRATION_ID_FIELD> = '<migration_name>'
+  AND  <RENEWAL_PLATE_FIELD>        = '<placa>';   -- env: RENEWAL_PLATE_FIELD
+```
+
+5. Comparar cada fila DB con la fila del Excel:
+   - `factor` — valor numérico normalizado a 8 decimales, o la cadena `'No Renovar'`
+   - `renewal_blocked` — `'Yes'` si el factor era `'No Renovar'`, `'No'` en caso contrario
+
+**Resultado por placa:**
+- `ok` — ambos campos coinciden exactamente
+- `failed` — al menos un campo difiere o la fila no existe en DB (`found: null`)
+
+**Resultado del check:**
+- `ok` si `failed == 0`
+- `failed` si `failed >= 1` (se reportan todas las discrepancias, no solo la primera)
+
+**Si `sample_size > filas disponibles`:** se usan todas las filas con placa, sin error.
+
+---
+
 ### Resumen de checks por tipo
 
-| Check | `ren-data` | `rules` | Tipo |
-|---|---|---|---|
-| `flyway_history` | ✓ | ✓ | SQL |
-| `endpoint_health` | ✓ | ✓ | HTTP |
-| `row_count` | ✓ | — | SQL |
-| `no_renovar_count` | ✓ | — | SQL |
-| `entity_rows` | — | ✓ | SQL |
+| Check | `ren-data` | `rules` | Tipo | Fuente |
+|---|---|---|---|---|
+| `flyway_history` | ✓ | ✓ | SQL | `migration_name` del request |
+| `endpoint_health` | ✓ | ✓ | HTTP | env vars de hosts |
+| `row_count` | ✓ | — | SQL | conteo total en DB |
+| `no_renovar_count` | ✓ | — | SQL | campo `renewal_blocked` en DB |
+| `entity_rows` | — | ✓ | SQL | campo `entity` en DB |
+| `plate_sample` | ✓ | — | SQL | muestra aleatoria del Excel adjunto vs DB |
 
 El resultado global es `approved` si **todos** los checks pasan.
 Si alguno falla, el resultado es `rejected`.
@@ -345,6 +386,9 @@ Nunca se hardcodean en el código.
 | `RENEWAL_TABLE` | Tabla que contiene las filas de vencimientos cargadas | `frd_fixed_renewal_data` |
 | `RENEWAL_MIGRATION_ID_FIELD` | Campo que identifica la migración en `RENEWAL_TABLE` | `migration_id` |
 | `RENEWAL_BLOCKED_FIELD` | Campo que indica bloqueo de renovación (`'Yes'`/`'No'`) | `renewal_blocked` |
+| `RENEWAL_PLATE_FIELD` | Campo de número de placa en `RENEWAL_TABLE` | `plate_number` |
+| `RENEWAL_FACTOR_FIELD` | Campo de factor de renovación en `RENEWAL_TABLE` | `factor` |
+| `QA_SAMPLE_SIZE` | Placas a muestrear por defecto (default `50`, máx `200`) | `50` |
 
 ### Esquema de base de datos — `rules`
 
@@ -380,8 +424,10 @@ CREATE TABLE IF NOT EXISTS qa_tasks (
     branch         TEXT,
     aux_branch     TEXT,
     commit_id      TEXT,
+    input_path     TEXT,                   -- ruta del Excel guardado en /data/uploads/
+    sample_size    INTEGER,                -- placas muestreadas
     result         TEXT,                   -- approved / rejected / null
-    checks         TEXT,                   -- JSON array de {name, status, detail}
+    checks         TEXT,                   -- JSON array de {name, status, detail, ...}
     summary        TEXT,
     error          TEXT,
     created_at     TEXT NOT NULL,
@@ -494,19 +540,31 @@ docker run -v qa-agent-data:/data ... ov-qa-agent:latest
 ```
 1. Azure DevOps pipeline DEV completa (evento o polling en n8n)
 2. n8n verifica que el pipeline terminó con éxito
-3. n8n llama POST /validate al QA Agent con ticket + migration_name + row_count
+3. n8n llama POST /validate al QA Agent — multipart/form-data:
+     file           = baseticketMES.xlsx  (el mismo que envió al Code Agent)
+     ticket         = ZNRX-67108
+     command        = ren-data
+     module         = ams-policy
+     migration_name = V2026_06_15_...
+     year/month     = 2026/6
 4. QA Agent responde 202 {"status": "queued", "task_id": "a1b2c3d4"}
-5. Worker QA Agent ejecuta checks en paralelo (o secuencial, a elección del dev):
-     a. flyway_history  → SQL
-     b. endpoint_health → HTTP
-     c. row_count       → SQL  (solo ren-data)
-     d. no_renovar_count → SQL (solo ren-data)
+5. Worker QA Agent:
+     a. Guarda el Excel en /data/uploads/
+     b. Lee todas las filas del Excel (CHASIS, TASA FINAL, PLACAS)
+     c. Selecciona sample_size placas al azar con placa no vacía
+     d. Ejecuta checks (todos acumulados antes de resolver el resultado global):
+          i.   flyway_history   → SQL
+          ii.  endpoint_health  → HTTP
+          iii. row_count        → SQL  (solo ren-data)
+          iv.  no_renovar_count → SQL  (solo ren-data)
+          v.   entity_rows      → SQL  (solo rules)
+          vi.  plate_sample     → SQL por cada placa muestreada (solo ren-data)
 6. QA Agent construye resultado agregado (approved / rejected)
-7. QA Agent persiste resultado en SQLite
+7. QA Agent persiste resultado en SQLite (incluyendo detalle de fallos por placa)
 8. QA Agent hace POST callback a n8n con resultado completo
 9. n8n procesa resultado:
      approved → actualiza Jira (link PR + "QA passed") → cierra ticket
-     rejected → actualiza Jira (detalle de checks fallidos) → reabre / escala
+     rejected → actualiza Jira (detalle de checks + placas fallidas) → reabre / escala
 ```
 
 ---
@@ -529,9 +587,12 @@ docker run -d \
   -e RENEWAL_TABLE=frd_fixed_renewal_data \
   -e RENEWAL_MIGRATION_ID_FIELD=migration_id \
   -e RENEWAL_BLOCKED_FIELD=renewal_blocked \
+  -e RENEWAL_PLATE_FIELD=plate_number \
+  -e RENEWAL_FACTOR_FIELD=factor \
   -e RULES_TABLE=ams_rule_entry \
   -e RULES_ENTITY_FIELD=entity \
   -e RULES_MIGRATION_ID_FIELD=migration_id \
+  -e QA_SAMPLE_SIZE=50 \
   -e N8N_CALLBACK_URL=https://n8n.genai.zurich.com/webhook/qa-result \
   -v qa-agent-data:/data \
   -p 5000:5000 \
