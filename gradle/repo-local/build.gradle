@@ -1,0 +1,89 @@
+buildscript {
+    ext {
+        arizonaCoreVersion = '2.0.5'
+        springBootVersion = '2.1.18.RELEASE'
+        springCloudVersion = 'Greenwich.SR6'
+        thinVersion = '1.0.27.RELEASE'
+    }
+    repositories {
+        maven {
+            url uri("$rootDir/.project/local-repo")
+        }
+        mavenLocal()
+        mavenCentral()
+        gradlePluginPortal()
+        maven {
+            name = "azureArtifacts"
+            url = uri(project.findProperty("zurich-library-${env}FeedUrl") ?: "")
+            credentials {
+                username = project.findProperty("zurich-library-${env}Username") ?: ""
+                password = project.findProperty("zurich-library-${env}Password") ?: ""
+            }
+        }
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+        if (project.hasProperty('buildAsThinJar')) {
+            classpath("org.springframework.boot.experimental:spring-boot-thin-gradle-plugin:${thinVersion}")
+        }
+        classpath("com.adarshr:gradle-test-logger-plugin:3.1.0")
+        classpath("org.hibernate:hibernate-gradle-plugin:5.6.3.Final")
+        classpath("com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.0-rc2")
+    }
+}
+
+apply from: 'dependencies.gradle'
+
+subprojects { subProject ->
+    pluginManager.withPlugin("java") { plg ->
+        apply plugin: 'idea'
+
+        group = "eu.ncdc.arizona.backend.ecuador." + subProject.getProjectPath().toString().substring(1).replace(':', '.')
+        version = project.hasProperty('buildVersion') ? project.getProperty('buildVersion') : 'head'
+        sourceCompatibility = 1.8
+
+        idea {
+            module {
+                downloadJavadoc = true
+                downloadSources = true
+            }
+        }
+    }
+
+    pluginManager.withPlugin('org.springframework.boot') {
+        configurations.all {
+            exclude group: 'xalan', module: 'xalan'
+            exclude group: 'org.glassfish.hk2.external', module: 'aopalliance-repackaged'
+            exclude group: 'org.apache.geronimo.specs', module: 'geronimo-jms_1.1_spec'
+            exclude group: 'org.apache.geronimo.specs', module: 'geronimo-jta_1.1_spec'
+            exclude group: 'org.jboss.spec.javax.annotation', module: 'jboss-annotations-api_1.3_spec'
+            exclude group: 'org.jboss.spec.javax.transaction', module: 'jboss-transaction-api_1.2_spec'
+            exclude group: 'org.jboss.spec.javax.ws.rs', module: 'jboss-jaxrs-api_2.1_spec'
+            exclude group: 'org.jboss.spec.javax.xml.bind', module: 'jboss-jaxb-api_2.3_spec'
+            exclude group: 'javax.validation', module: 'validation-api'
+            exclude group: 'javax.activation', module: 'javax.activation-api'
+        }
+
+        if (project.hasProperty('buildAsThinJar')) {
+            apply plugin: 'org.springframework.boot.experimental.thin-launcher'
+            jar.dependsOn = [thinProperties]
+            jar.enabled = true
+        }
+        if (project.hasProperty('unpackExtraHotswapAgentPlugins')) {
+            springBoot {
+                requiresUnpack = ['eu.ncdc.arizona.core.hotswap-plugin:hotswap-plugin']
+            }
+            dependencies {
+                api(resolve_arizona_core_dep('core', 'hotswap-plugin'))
+            }
+        }
+    }
+
+    pluginManager.withPlugin('org.springframework.boot') {
+        apply plugin: "com.gorylenko.gradle-git-properties"
+    }
+}
+
+def resolve_arizona_core_dep(serviceName, serviceModule) {
+    return 'eu.ncdc.arizona.' + serviceName + '.' + serviceModule + ':' + serviceModule + ":${arizonaCoreVersion}-core-SNAPSHOT-PY4"
+}

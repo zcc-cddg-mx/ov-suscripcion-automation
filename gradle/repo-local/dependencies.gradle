@@ -1,0 +1,180 @@
+repositories {
+    maven {
+        url uri("$rootDir/.project/local-repo")
+    }
+    mavenLocal()
+    mavenCentral()
+    maven {
+        name = "azureArtifacts"
+        url = uri(project.findProperty("zurich-library-${env}FeedUrl") ?: "")
+        credentials {
+            username = project.findProperty("zurich-library-${env}Username") ?: ""
+            password = project.findProperty("zurich-library-${env}Password") ?: ""
+        }
+    }
+}
+
+ext['hibernate.version'] = '5.6.3.Final'
+ext['flyway.version'] = '5.2.4'
+ext['postgresql.version'] = '42.3.1'
+ext['jackson.version'] = '2.12.7'
+ext['infinispan.version'] = '9.3.1.Final'
+ext['hazelcast.version'] = '3.12'
+ext['activemq.version'] = '5.16.7'
+ext['mockito.version'] = '4.0.0'
+ext['junit-jupiter.version'] = '5.8.2'
+ext['liquibase.version'] = '3.5.5'
+ext['querydsl.version'] = '5.0.0'
+ext['logback.version'] = '1.2.9'
+ext['log4j2.version'] = '2.18.0'
+
+
+ext.libraries = [
+        commons_codec                  : [group: 'commons-codec', name: 'commons-codec', version: '1.15'],
+        commons_beanutils              : [group: 'commons-beanutils', name: 'commons-beanutils', version: '1.9.4'],
+        commons_lang3                  : [group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.0'],
+        commons_collections4           : [group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'],
+        commons_text                   : [group: 'org.apache.commons', name: 'commons-text', version: '1.9'],
+        commons_vfs2                   : [group: 'org.apache.commons', name: 'commons-vfs2', version: '2.9.0'],
+        commons_net                    : [group: 'commons-net', name: 'commons-net', version: '3.6'],
+        commons_io                     : [group: 'commons-io', name: 'commons-io', version: '2.2'],
+        commons_jxpath                 : [group: 'commons-jxpath', name: 'commons-jxpath', version: '1.3'],
+        commons_logging                : [group: 'commons-logging', name: 'commons-logging', version: '1.1.1'],
+        commons_dbcp2                  : [group: 'org.apache.commons', name: 'commons-dbcp2', version: '2.1.1'],
+        guava                          : [group: 'com.google.guava', name: 'guava', version: '20.0'],
+        joda_time                      : [group: 'joda-time', name: 'joda-time', version: '2.10.13'],
+        reflections                    : [group: 'org.reflections', name: 'reflections', version: '0.10.2'],
+        orika                          : [group: 'ma.glasnost.orika', name: 'orika-core', version: '1.5.4'],
+        tika                           : [group: 'org.apache.tika', name: 'tika-core', version: '2.2.1'],
+        jsch                           : [group: 'com.jcraft', name: 'jsch', version: '0.1.55'],
+        feign_form_spring              : [group: 'io.github.openfeign.form', name: 'feign-form-spring', version: '3.3.0'],
+        pdf_box                        : [group: 'org.apache.pdfbox', name: 'pdfbox', version: '2.0.24'],
+        zxing_group                    : [
+                [group: 'com.google.zxing', name: 'core', version: '3.4.1'],
+                [group: 'com.google.zxing', name: 'javase', version: '3.4.1']
+        ],
+        hazelcast_group                : [
+                [group: 'com.hazelcast', name: 'hazelcast', version: '3.12'],
+                [group: 'com.hazelcast', name: 'hazelcast-wm', version: '3.8.4'],
+                [group: 'com.hazelcast', name: 'hazelcast-eureka-one', version: '1.1.2']
+        ],
+        lucene_group                   : [
+                [group: 'org.apache.lucene', name: 'lucene-core', version: '8.8.1'],
+                [group: 'org.apache.lucene', name: 'lucene-queryparser', version: '8.8.1'],
+                [group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '8.8.1']
+        ],
+        jasperreports_group            : [
+                [group: 'net.sf.jasperreports', name: 'jasperreports', version: '6.11.0'],
+                [group: 'com.lowagie', name: 'itext', version: '2.1.7'],
+                [group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.56'],
+                [group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.56']
+        ],
+        querydsl_group                 : [
+                [group: 'com.querydsl', name: 'querydsl-core', version: '5.0.0'],
+                [group: 'com.querydsl', name: 'querydsl-jpa', version: '5.0.0'],
+                [group: 'com.querydsl', name: 'querydsl-sql', version: '5.0.0']
+        ],
+        poi_group                      : [
+                [group: 'org.apache.poi', name: 'poi', version: '5.2.3'],
+                [group: 'org.apache.poi', name: 'poi-ooxml', version: '5.2.3'],
+                [group: 'org.apache.poi', name: 'poi-ooxml-schemas', version: '5.1.0'],
+                [group: 'org.apache.poi', name: 'ooxml-schemas', version: '1.4']
+        ],
+        hibernate_search_group         : [
+                [group: 'org.hibernate', name: 'hibernate-search-orm', version: '5.11.10.Final'],
+                [group: 'org.hibernate', name: 'hibernate-search-serialization-avro', version: '5.11.10.Final']
+        ],
+        narayana_rts_restat_api        : [group: 'org.jboss.narayana.rts', name: 'restat-api', version: '5.12.4.Final'],
+        narayana_rts_restat_integration: [group: 'org.jboss.narayana.rts', name: 'restat-integration', version: '5.12.4.Final'],
+        narayana_rts_restat_util       : [group: 'org.jboss.narayana.rts', name: 'restat-util', version: '5.12.4.Final'],
+        arch_unit                      : [group: 'com.tngtech.archunit', name: 'archunit', version: '1.0.1']
+]
+
+subprojects { subProject ->
+
+    pluginManager.withPlugin("java") { plg ->
+        apply plugin: 'io.spring.dependency-management'
+        apply plugin: 'maven-publish'
+
+        repositories {
+            maven {
+                url uri("$rootDir/.project/local-repo")
+            }
+            mavenLocal()
+            mavenCentral()
+            maven {
+                name = "azureArtifacts"
+                url = uri(project.findProperty("zurich-library-${env}FeedUrl") ?: "")
+                credentials {
+                    username = project.findProperty("zurich-library-${env}Username") ?: ""
+                    password = project.findProperty("zurich-library-${env}Password") ?: ""
+                }
+            }
+        }
+
+        task install {
+            dependsOn publishToMavenLocal
+        }
+        task uploadArchives {
+            dependsOn publish
+        }
+
+        task sourcesJar(type: Jar) {
+            classifier = 'sources'
+            from sourceSets.main.allJava
+        }
+
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    from components.java
+                    artifact sourcesJar
+
+                    versionMapping {
+                        usage('java-api') {
+                            fromResolutionOf('runtimeClasspath')
+                        }
+                        usage('java-runtime') {
+                            fromResolutionResult()
+                        }
+                    }
+                }
+            }
+            repositories {
+                maven {
+                    name = "azureArtifacts"
+                    url = uri(project.findProperty("zurich-library-${env}FeedUrl") ?: "")
+                    credentials {
+                        username = project.findProperty("zurich-library-${env}Username") ?: ""
+                        password = project.findProperty("zurich-library-${env}Password") ?: ""
+                    }
+                }
+            }
+        }
+
+        dependencyManagement {
+            imports {
+                mavenBom("org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}")
+                mavenBom("org.springframework.boot:spring-boot-dependencies:${springBootVersion}")
+            }
+            dependencies {
+                dependency group: 'com.oracle.ojdbc', name: 'ojdbc8', version: '19.3.0.0'
+            }
+        }
+
+        dependencies {
+            implementation('com.fasterxml.jackson.core:jackson-databind:2.12.7.1')
+            implementation('com.thoughtworks.xstream:xstream:1.4.20')
+            implementation('com.google.guava:guava:32.0.1-jre')
+
+            if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
+                implementation('javax.xml.bind:jaxb-api:2.3.1')
+                implementation('com.sun.xml.bind:jaxb-core:3.0.2')
+                implementation('com.sun.xml.bind:jaxb-impl:3.0.2')
+                implementation('com.sun.xml.ws:jaxws-ri:2.3.3')
+                implementation('javax.mail:javax.mail-api:1.6.2')
+                implementation('javax.activation:activation:1.1.1')
+            }
+        }
+    }
+}

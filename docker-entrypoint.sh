@@ -99,6 +99,7 @@ if [ -d "${REPO_PATH}/.git" ]; then
             echo "[entrypoint] branch ${branch} not found — skipping"
     done
     git checkout developer
+    BACKEND_DIR="${REPO_PATH}" /opt/gradle-repo-local/setup-local-gradle.sh
     cd /app
 else
     echo "[entrypoint] WARNING: repo not found at ${REPO_PATH}"

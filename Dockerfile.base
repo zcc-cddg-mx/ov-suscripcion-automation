@@ -4,6 +4,7 @@
 #           + Python venv + dependencias pip
 #           + /repos/ov-arizona-backend-ecuador (clon del repo backend)
 #           + /root/.gradle/caches poblado con todas las dependencias del proyecto
+#           + /repos/ov-arizona-backend-ecuador/.project/local-repo (repo Maven local)
 #
 # El cache elimina descargas desde Azure Artifacts en compilaciones normales.
 # Las credenciales Azure Artifacts se mantienen como fallback para dependencias nuevas.
@@ -56,13 +57,7 @@ ENV JAVA_HOME=/usr/lib/jvm/temurin-8-jdk-amd64
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Clonar repo backend, poblar ramas principales y cache Gradle
-#
-# 1. git clone con GIT_PAT (solo lectura)
-# 2. fetch de ramas principales: main, develop, test, developer
-# 3. gradle.properties con credenciales Azure Artifacts
-# 4. copyAllDependencies — resuelve todos los subproyectos y pobla cache Gradle
-# 5. Se borran gradle.properties — PAT no queda en ninguna capa final
+# 1. Clonar repo backend y poblar ramas principales
 # ─────────────────────────────────────────────────────────────────────────────
 RUN git clone \
         "https://ZurichInsurance-EC:${GIT_PAT}@dev.azure.com/ZurichInsurance-EC/Oficina-Virtual-ZEC/_git/ov-arizona-backend-ecuador" \
@@ -70,8 +65,17 @@ RUN git clone \
     cd /repos/ov-arizona-backend-ecuador && \
     for branch in main develop test developer; do \
         git fetch origin ${branch}:${branch} 2>/dev/null || true; \
-    done && \
-    mkdir -p /root/.gradle && \
+    done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Dependencias Maven — gradle.properties con credenciales Azure Artifacts,
+#    gradle dependencies puebla /root/.gradle/caches (cache nativo Gradle).
+#    Luego se copia a .project/local-repo (misma estructura files-2.1),
+#    y se crea el symlink al path hardcodeado en build.gradle del backend.
+#    gradle.properties se crea y borra en el mismo RUN — el PAT no queda
+#    en ninguna capa de la imagen.
+# ─────────────────────────────────────────────────────────────────────────────
+RUN mkdir -p /root/.gradle && \
     printf \
 "org.gradle.daemon=false\n\
 org.gradle.parallel=true\n\
@@ -93,7 +97,22 @@ systemProphttps.protocols=TLSv1.2,TLSv1.3\n" \
     "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
     "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
     > /root/.gradle/gradle.properties && \
-    gradle copyAllDependencies \
+    cd /repos/ov-arizona-backend-ecuador && \
+    gradle build -x test \
         -Penv=dev -PcustomerOverlay=ecuador --no-daemon && \
     rm /root/.gradle/gradle.properties && \
-    echo "[base] cache baked OK — gradle=$(du -sh /root/.gradle/caches | cut -f1)"
+    echo "[base] gradle cache — $(du -sh /root/.gradle/caches | cut -f1)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Construir local-repo desde el cache nativo Gradle (equivalente a
+#    exportGradleCache) y aplicar bloques local-repo en build.gradle /
+#    dependencies.gradle via setup-local-gradle.sh (idempotente).
+# ─────────────────────────────────────────────────────────────────────────────
+COPY gradle/repo-local /opt/gradle-repo-local
+RUN chmod +x /opt/gradle-repo-local/setup-local-gradle.sh && \
+    mkdir -p /repos/ov-arizona-backend-ecuador/.project/local-repo && \
+    cp -r /root/.gradle/caches/modules-2/files-2.1/. \
+          /repos/ov-arizona-backend-ecuador/.project/local-repo/ && \
+    echo "[base] local-repo OK — $(du -sh /repos/ov-arizona-backend-ecuador/.project/local-repo | cut -f1)" && \
+    BACKEND_DIR=/repos/ov-arizona-backend-ecuador \
+        /opt/gradle-repo-local/setup-local-gradle.sh
