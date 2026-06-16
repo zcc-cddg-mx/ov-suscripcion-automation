@@ -21,6 +21,7 @@ docker run -d \
   -e GIT_USERNAME="${AZURE_USERNAME}" \
   -e GIT_PAT="${PAT}" \
   -e REPO_PATH=/repos/ov-arizona-backend-ecuador \
+  -v ov-agent-data:/data \
   ov-code-agent:latest
 
 echo "Levantando..."

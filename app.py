@@ -1,10 +1,11 @@
 """HTTP API listener for the Code Agent (architecture v3).
 
-Exposes three endpoints:
+Exposes four endpoints:
 
   GET  /health              — liveness check
   POST /run                 — enqueue a migration task (returns 202 immediately)
   GET  /status/<task_id>    — poll task status
+  GET  /tasks               — list recent tasks (last 50, newest first)
 
 POST /run request body:
 
@@ -26,6 +27,9 @@ POST /run response — always 202 Accepted (or 400 on malformed body):
 
 GET /status/<task_id>:
   {"status": "queued" | "running" | "done" | "error" | "rejected", ...result fields}
+
+Task state is persisted in SQLite (TASKS_DB env var, default /data/tasks.db).
+Mount /data as a Docker volume to keep history across container restarts.
 """
 
 from __future__ import annotations
@@ -42,13 +46,14 @@ from main import run_payload
 from src.build_check import BuildCheckError
 from src.config import load_config
 from src.logger import log
+from src import task_store
 
 app = Flask(__name__)
+task_store.init_db()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Task registry and concurrency control
+# Concurrency control
 # ─────────────────────────────────────────────────────────────────────────────
-_tasks: dict[str, dict] = {}
 _lock = threading.Lock()
 _current_task: dict | None = None  # {task_id, ticket, started_at}
 
@@ -69,6 +74,7 @@ def run():
         return jsonify({"status": "error", "error": "Request body must be JSON"}), 400
 
     task_id = str(uuid.uuid4())[:8]
+    now = _now_iso()
 
     # Concurrency check in the request handler (not the worker thread) so the
     # rejection is instantaneous — no race between thread scheduling and the lock.
@@ -78,16 +84,27 @@ def run():
             f"task_id={task_id} ticket={payload.get('ticket')} REJECTED — "
             f"task {active.get('task_id')} ({active.get('ticket')}) already running"
         ))
-        _tasks[task_id] = {
-            "status": "rejected",
+        task = {
             "task_id": task_id,
+            "ticket": payload.get("ticket"),
+            "command": payload.get("command"),
+            "status": "rejected",
             "error": f"Task {active.get('task_id')} ({active.get('ticket')}) is already running",
             "active_task": active,
+            "created_at": now,
         }
+        task_store.upsert(task, now)
         return jsonify({"status": "rejected", "task_id": task_id, "active_task": active}), 202
 
     # Lock acquired — register task and hand off to worker thread
-    _tasks[task_id] = {"status": "queued", "task_id": task_id}
+    task = {
+        "task_id": task_id,
+        "ticket": payload.get("ticket"),
+        "command": payload.get("command"),
+        "status": "queued",
+        "created_at": now,
+    }
+    task_store.upsert(task, now)
     log("RECV", f"task_id={task_id} ticket={payload.get('ticket')} ACCEPTED — lock acquired")
 
     def worker():
@@ -98,32 +115,33 @@ def run():
             "ticket": payload.get("ticket"),
             "started_at": _now_iso(),
         }
-        _tasks[task_id]["status"] = "running"
+        task_store.upsert({"task_id": task_id, "status": "running"}, _now_iso())
 
         try:
             result = run_payload(payload)
         except BuildCheckError as exc:
             log("ERROR", f"task_id={task_id} build failed: {exc}")
-            _tasks[task_id].update({
+            task_store.upsert({
+                "task_id": task_id,
                 "status": "error",
                 "error": str(exc),
                 "build_status": "failed",
-            })
+            }, _now_iso())
         except (ValueError, KeyError) as exc:
             log("ERROR", f"task_id={task_id} validation error: {exc}")
-            _tasks[task_id].update({
+            task_store.upsert({
+                "task_id": task_id,
                 "status": "error",
                 "error": str(exc),
-                "build_status": None,
-            })
+            }, _now_iso())
         except Exception as exc:
             traceback.print_exc()
             log("ERROR", f"task_id={task_id} unexpected error: {exc}")
-            _tasks[task_id].update({
+            task_store.upsert({
+                "task_id": task_id,
                 "status": "error",
                 "error": str(exc),
-                "build_status": None,
-            })
+            }, _now_iso())
         else:
             cfg = load_config()
             repo_name = os.path.basename(os.path.normpath(cfg.get("repo", "")))
@@ -133,7 +151,8 @@ def run():
                 if branch
                 else f"Migration {result['base_name']} generated (no commit)"
             )
-            _tasks[task_id].update({
+            task_store.upsert({
+                "task_id": task_id,
                 "status": "done",
                 "branch": branch,
                 "aux_branch": result.get("aux_branch"),
@@ -141,7 +160,7 @@ def run():
                 "repo": repo_name,
                 "build_status": "success" if result.get("commit_id") else None,
                 "summary": summary,
-            })
+            }, _now_iso())
         finally:
             _current_task = None
             _lock.release()
@@ -152,10 +171,16 @@ def run():
 
 @app.get("/status/<task_id>")
 def status(task_id: str):
-    task = _tasks.get(task_id)
+    task = task_store.get(task_id)
     if not task:
         return jsonify({"error": "task not found"}), 404
     return jsonify(task)
+
+
+@app.get("/tasks")
+def tasks():
+    limit = min(int(request.args.get("limit", 50)), 200)
+    return jsonify(task_store.get_recent(limit))
 
 
 if __name__ == "__main__":
