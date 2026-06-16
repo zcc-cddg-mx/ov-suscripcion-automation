@@ -414,17 +414,55 @@ al primer fallo. n8n y el operador necesitan el reporte completo para diagnostic
 
 ### 8.5 Docker
 
-Imagen basada en Python + psycopg2 (o el driver apropiado para la base de datos).
-Volumen `/data` para SQLite. Sin Gradle/Java — el QA Agent no compila nada.
+La imagen base corporativa es `ams-ubuntu-lite:latest` (igual que el Code Agent).
+El QA Agent **no necesita Java ni Gradle** — la imagen es significativamente más
+ligera que `ov-agent-base`. Solo requiere Python + el driver de base de datos.
+
+Estructura en dos imágenes (mismo patrón que el Code Agent):
+
+- **`qa-agent-base`** — `ams-ubuntu-lite` + Python venv + pip deps. Se construye
+  una vez; solo se reconstruye si cambian dependencias.
+- **`ov-qa-agent`** — `FROM qa-agent-base` + código Python. Build en segundos.
 
 ```dockerfile
-FROM python:3.12-slim
-RUN apt-get install -y libpq-dev gcc  # para psycopg2
-COPY requirements.txt .
-RUN pip install flask requests psycopg2-binary
+# Dockerfile.base — qa-agent-base
+FROM ams-ubuntu-lite:latest
+
+RUN apt-get -qq update && \
+    apt-get -qq -y install --no-install-recommends \
+        python3-pip python3-venv libpq-dev gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+```
+
+```dockerfile
+# Dockerfile — ov-qa-agent
+FROM qa-agent-base:latest
+
+WORKDIR /app
 COPY . .
+RUN chmod +x /app/docker-entrypoint.sh
+
 EXPOSE 5000
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["python", "app.py"]
+```
+
+```
+# requirements.txt
+flask>=3.1
+requests>=2.31
+psycopg2-binary>=2.9   # ajustar al motor real: pymssql, cx_Oracle, etc.
+```
+
+Volumen `/data` para SQLite (igual que el Code Agent):
+```bash
+docker run -v qa-agent-data:/data ... ov-qa-agent:latest
 ```
 
 ---
