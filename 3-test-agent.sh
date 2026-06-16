@@ -69,6 +69,35 @@ for i in $(seq 1 150); do
 done
 
 echo ""
+echo "=== POST /run (ren-data, con commit, con compile) ==="
+RESP=$(curl -sf -X POST "${BASE_URL}/run" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "ren-data",
+    "ticket": "INC0003",
+    "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
+    "year": 2026,
+    "month": 8,
+    "commit": true,
+    "compile": true
+  }')
+echo "${RESP}" | python3 -m json.tool
+TASK_ID=$(echo "${RESP}" | python3 -c "import sys,json; print(json.load(sys.stdin)['task_id'])")
+
+echo ""
+echo "Polling /status/${TASK_ID} (max 10 min)..."
+for i in $(seq 1 300); do
+  SRES=$(curl -sf "${BASE_URL}/status/${TASK_ID}")
+  STATUS=$(echo "${SRES}" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+  if [[ "${STATUS}" != "queued" && "${STATUS}" != "running" ]]; then
+    echo "${SRES}" | python3 -m json.tool
+    break
+  fi
+  printf "  [%ds] status=%s\n" "$((i*2))" "${STATUS}"
+  sleep 2
+done
+
+echo ""
 echo "=== POST /run (concurrent — should be rejected) ==="
 # Send two requests almost simultaneously and check second is rejected
 curl -sf -X POST "${BASE_URL}/run" \
