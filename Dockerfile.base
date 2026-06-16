@@ -15,8 +15,6 @@
 
 FROM ams-ubuntu-lite:latest
 
-ARG GRADLE_USERNAME
-ARG GRADLE_DEV_PASSWORD
 ARG GIT_PAT
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -68,51 +66,19 @@ RUN git clone \
     done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. Dependencias Maven — gradle.properties con credenciales Azure Artifacts,
-#    gradle dependencies puebla /root/.gradle/caches (cache nativo Gradle).
-#    Luego se copia a .project/local-repo (misma estructura files-2.1),
-#    y se crea el symlink al path hardcodeado en build.gradle del backend.
-#    gradle.properties se crea y borra en el mismo RUN — el PAT no queda
-#    en ninguna capa de la imagen.
+# 2. local-repo Maven — copiado desde gradle/local-repo/ (gitignoreado,
+#    distribuido via gradle/local-repo.tar.gz).
+#    Credenciales Azure Artifacts se mantienen como fallback para dependencias
+#    nuevas que no estén en el local-repo.
 # ─────────────────────────────────────────────────────────────────────────────
-RUN mkdir -p /root/.gradle && \
-    printf \
-"org.gradle.daemon=false\n\
-org.gradle.parallel=true\n\
-org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\n\
-org.gradle.caching=true\n\
-env=dev\n\
-customerOverlay=ecuador\n\
-zurich-library-devUsername=%s\n\
-zurich-library-devPassword=%s\n\
-zurich-library-devFeedUrl=https://pkgs.dev.azure.com/ZurichInsurance-EC/_packaging/zurich-library-dev/maven/v1\n\
-zurich-library-testUsername=%s\n\
-zurich-library-testPassword=%s\n\
-zurich-library-testFeedUrl=https://pkgs.dev.azure.com/ZurichInsurance-EC/_packaging/zurich-library-uat/maven/v1\n\
-zurich-library-prodUsername=%s\n\
-zurich-library-prodPassword=%s\n\
-zurich-library-prodFeedUrl=https://pkgs.dev.azure.com/ZurichInsurance-EC/_packaging/zurich-library-prod/maven/v1\n\
-systemProphttps.protocols=TLSv1.2,TLSv1.3\n" \
-    "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
-    "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
-    "${GRADLE_USERNAME}" "${GRADLE_DEV_PASSWORD}" \
-    > /root/.gradle/gradle.properties && \
-    cd /repos/ov-arizona-backend-ecuador && \
-    gradle build -x test \
-        -Penv=dev -PcustomerOverlay=ecuador --no-daemon && \
-    rm /root/.gradle/gradle.properties && \
-    echo "[base] gradle cache — $(du -sh /root/.gradle/caches | cut -f1)"
+COPY gradle/local-repo /repos/ov-arizona-backend-ecuador/.project/local-repo
+RUN echo "[base] local-repo OK — $(du -sh /repos/ov-arizona-backend-ecuador/.project/local-repo | cut -f1)"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Construir local-repo desde el cache nativo Gradle (equivalente a
-#    exportGradleCache) y aplicar bloques local-repo en build.gradle /
-#    dependencies.gradle via setup-local-gradle.sh (idempotente).
+# 3. Aplicar bloques local-repo en build.gradle / dependencies.gradle
+#    via setup-local-gradle.sh (idempotente).
 # ─────────────────────────────────────────────────────────────────────────────
 COPY gradle/repo-local /opt/gradle-repo-local
 RUN chmod +x /opt/gradle-repo-local/setup-local-gradle.sh && \
-    mkdir -p /repos/ov-arizona-backend-ecuador/.project/local-repo && \
-    cp -r /root/.gradle/caches/modules-2/files-2.1/. \
-          /repos/ov-arizona-backend-ecuador/.project/local-repo/ && \
-    echo "[base] local-repo OK — $(du -sh /repos/ov-arizona-backend-ecuador/.project/local-repo | cut -f1)" && \
     BACKEND_DIR=/repos/ov-arizona-backend-ecuador \
         /opt/gradle-repo-local/setup-local-gradle.sh

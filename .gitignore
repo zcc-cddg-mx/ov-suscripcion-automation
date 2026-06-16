@@ -11,6 +11,9 @@ config.json
 gradle-6.8.3.zip
 gradle-plugins/
 
+# local-repo Maven: directorio gitignoreado, distribuir via gradle/local-repo.tar.gz
+gradle/local-repo/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

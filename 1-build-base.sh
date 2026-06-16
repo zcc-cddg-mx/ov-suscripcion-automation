@@ -14,15 +14,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "${SCRIPT_DIR}/.env.local" ] && source "${SCRIPT_DIR}/.env.local"
 
 : "${PAT:?set PAT in .env.local or environment}"
-: "${AZURE_USERNAME:?set AZURE_USERNAME in .env.local or environment}"
 REGISTRY="${REGISTRY:-}"
 TAG="ov-agent-base:latest"
+
+# Extraer local-repo si no existe el directorio
+if [ ! -d "${SCRIPT_DIR}/gradle/local-repo" ]; then
+    echo "[build-base] extrayendo gradle/local-repo.tar.gz..."
+    tar -xzf "${SCRIPT_DIR}/gradle/local-repo.tar.gz" -C "${SCRIPT_DIR}/gradle/"
+    echo "[build-base] local-repo extraído — $(du -sh "${SCRIPT_DIR}/gradle/local-repo" | cut -f1)"
+fi
 
 echo "[build-base] building ${TAG} (esto puede tomar varios minutos la primera vez)..."
 
 docker build \
-    --build-arg GRADLE_USERNAME="${AZURE_USERNAME}" \
-    --build-arg GRADLE_DEV_PASSWORD="${PAT}" \
     --build-arg GIT_PAT="${PAT}" \
     -f Dockerfile.base \
     -t "${TAG}" \

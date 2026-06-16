@@ -45,12 +45,13 @@ echo "[entrypoint] config.json → repo: ${REPO_PATH}"
 # 2. Generate ~/.gradle/gradle.properties (Gradle credentials + env)
 # ─────────────────────────────────────────────────────────────────────────────
 mkdir -p ~/.gradle
+GRADLE_WORKERS="${GRADLE_WORKERS_MAX:-$(nproc)}"
 
 cat > ~/.gradle/gradle.properties <<EOF
 org.gradle.daemon=true
 org.gradle.parallel=true
-org.gradle.jvmargs=-Xmx2048m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
-org.gradle.workers.max=4
+org.gradle.jvmargs=-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+org.gradle.workers.max=${GRADLE_WORKERS}
 org.gradle.caching=true
 
 env=dev
