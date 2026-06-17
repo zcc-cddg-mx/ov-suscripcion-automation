@@ -23,6 +23,12 @@ from src.logger import log
 
 _DEFAULT_TIMEOUT_MINUTES = int(os.environ.get("BUILD_TIMEOUT_MINUTES", "20"))
 
+# True only when both java and gradle are on PATH — absent in the alpine lite image
+_JAVA_AVAILABLE = (
+    subprocess.run(["java", "-version"], capture_output=True).returncode == 0
+    and subprocess.run(["gradle", "--version"], capture_output=True).returncode == 0
+)
+
 # Maps Code Agent module names to Gradle subproject paths
 _MODULE_GRADLE_PATH = {
     "ams-policy": ":ams-policy:flyway",
@@ -92,6 +98,10 @@ def verify(repo_root: Path, module: str, timeout_minutes: int | None = None) -> 
         "-Penv=dev",
         "-PcustomerOverlay=ecuador",
     ]
+
+    if not _JAVA_AVAILABLE:
+        log("BUILD", "java/gradle not available — skipping compile step")
+        return
 
     log("BUILD", f"gradle {gradle_path}:compileJava — module={module}")
     t0 = time.monotonic()
