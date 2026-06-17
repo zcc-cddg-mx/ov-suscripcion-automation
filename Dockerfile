@@ -19,6 +19,7 @@ RUN apk add --no-cache \
         git \
         gcc \
         musl-dev \
+        curl \
         libffi-dev
 
 WORKDIR /app
