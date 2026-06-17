@@ -1,14 +1,20 @@
 """Tests for generator_rules."""
 
+import os
 from pathlib import Path
 
 import openpyxl
 import pytest
 
-from src.generator_rules import generate, _entity_to_code, _read_current_version
+from src.generator_rules import (
+    generate, _entity_to_code, _read_current_version,
+    _load_cotizador_drivers_age, _COTIZADOR_DRIVERS_AGE_HEADERS,
+)
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures"
-_RULES_REF = _FIXTURES / "VHPlanRules_reference.xlsx"
+_RULES_REF = _FIXTURES / "rules/plan-rules/VHPlanRules_reference.xlsx"
+_COTIZADOR = _FIXTURES / "rules/business-reference/Cotizador_MotorIndividualV25.xlsx"
+_COTIZADOR_PASSWORD = os.environ.get("BUSINESS_EXCEL_PASSWORD", "Motor2023*")
 
 # Path to a real ams-rule migration directory (relative to this file's parent parent parent)
 _AMS_RULE_RESOURCES = (
@@ -146,3 +152,79 @@ class TestGeneratorRules:
         empty_dir.mkdir()
         with pytest.raises(FileNotFoundError):
             generate(raw, out, "VHPlanRules", empty_dir)
+
+
+class TestCotizadorDriversAge:
+    """Tests for _load_cotizador_drivers_age — extracts EDAD_INPUT from the cotizador."""
+
+    def test_headers(self) -> None:
+        headers, _ = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        assert headers == _COTIZADOR_DRIVERS_AGE_HEADERS
+
+    def test_row_count(self) -> None:
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        # 63 single-year ages (17–79) + 1 for '80+' + 1 sentinel = 65
+        assert len(data) == 65
+
+    def test_first_row_age_17(self) -> None:
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        assert data[0][0] == 17  # from
+        assert data[0][1] == 17  # to
+
+    def test_80plus_maps_to_80_998(self) -> None:
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        # Second-to-last row is 80+ mapping
+        assert data[-2][0] == 80
+        assert data[-2][1] == 998
+
+    def test_sentinel_row_last(self) -> None:
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        assert data[-1][0] == 999
+        assert data[-1][1] == 999
+        assert all(v == 1 for v in data[-1][2:])
+
+    def test_pjuridica_excluded(self) -> None:
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        ages = [r[0] for r in data]
+        assert "P.JURIDICA" not in ages
+        assert None not in ages
+
+    def test_each_row_has_10_factor_columns(self) -> None:
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        for row in data:
+            assert len(row) == 12  # 2 age cols + 10 factors
+
+    def test_factor_values_match_reference(self) -> None:
+        """Spot-check first 5 and last 3 rows against VHDriversAge_reference.xlsx."""
+        ref_path = _FIXTURES / "rules/drivers-age/VHDriversAge_reference.xlsx"
+        if not ref_path.exists():
+            pytest.skip("VHDriversAge_reference.xlsx not present (distribute separately)")
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        ref_wb = openpyxl.load_workbook(ref_path, data_only=True)
+        ref_rows = list(ref_wb["VHDriversAge"].iter_rows(values_only=True))[1:]
+        ref_rows = [r for r in ref_rows if any(c is not None for c in r)]
+        for i in list(range(5)) + [-3, -2, -1]:
+            assert data[i] == pytest.approx(list(ref_rows[i][2:14]), rel=1e-9), f"Row {i} mismatch"
+
+    def test_generate_full_pipeline(self, tmp_path: Path) -> None:
+        """End-to-end: cotizador → VHDriversAge migration xlsx with correct structure."""
+        out = tmp_path / "VHDriversAge_test.xlsx"
+        generate(
+            raw_input=_COTIZADOR,
+            output=out,
+            entity_name="VHDriversAge",
+            repo_resources_path=_AMS_RULE_RESOURCES,
+            password=_COTIZADOR_PASSWORD,
+        )
+        wb = openpyxl.load_workbook(out, data_only=True)
+        assert wb.sheetnames == ["RuleKit", "RatingList", "VHDriversAge", "LOV"]
+
+        ws = wb["VHDriversAge"]
+        rows = list(ws.iter_rows(values_only=True))
+        assert rows[0] == tuple(["ID", "Rating list"] + _COTIZADOR_DRIVERS_AGE_HEADERS)
+        assert len(rows) - 1 == 65  # 65 data rows
+
+        # Version must be auto-incremented
+        ws_rl = wb["RatingList"]
+        rl = list(ws_rl.iter_rows(values_only=True))
+        assert rl[2][8] == rl[1][8] + 1  # NEW version = OLD + 1

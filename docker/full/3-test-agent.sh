@@ -188,7 +188,7 @@ echo "Sending request — agent will POST to ${CALLBACK_URL} on completion:"
 # Patch running container env and restart is impractical; instead we verify
 # the callback by temporarily setting N8N_CALLBACK_URL via docker exec if available.
 if docker inspect ov-code-agent > /dev/null 2>&1; then
-  docker exec ov-code-agent sh -c "N8N_CALLBACK_URL=${CALLBACK_URL} python3 -c \"
+  docker exec ov-code-agent bash -c "N8N_CALLBACK_URL=${CALLBACK_URL} python3 -c \"
 import requests, json
 body = {
   'ticket': 'INC_TEST_CALLBACK',

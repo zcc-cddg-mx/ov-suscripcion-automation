@@ -1,4 +1,4 @@
-# ov-code-agent — imagen Alpine sin Java/Gradle (~120-150 MB)
+# ov-code-agent-lite — imagen Alpine sin Java/Gradle (~120-150 MB)
 #
 # Diseñada para entornos con restricciones de almacenamiento (SERVICIOSIAS).
 # Cubre todo el contrato del agente excepto la verificación de compilación:
@@ -9,7 +9,7 @@
 # El repo backend se clona en el entrypoint con GIT_PAT.
 #
 # Build:
-#   PAT=<azure-pat> ./1-build-agent.sh
+#   PAT=<azure-pat> ./build-lite.sh
 
 FROM python:3.12-alpine
 
@@ -26,8 +26,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt flask==3.1.1
 
 COPY . .
-RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint-lite.sh
 
 EXPOSE 5000
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/docker-entrypoint-lite.sh"]
 CMD ["python", "app.py"]

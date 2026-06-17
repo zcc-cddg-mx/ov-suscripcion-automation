@@ -4,6 +4,14 @@ tests/migrations/*.java
 data/
 logs/
 
+# Business Excel files — contain actuarial/technical data, distributed separately
+fixtures/**/*.xlsx
+fixtures/*/*/*.xlsx
+requirements/*/*/*/*.xlsx
+
+# na
+architecture/*/*.yml
+
 # Local agent configuration (contains server-specific paths)
 config.json
 

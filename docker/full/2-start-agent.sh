@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 2-start-agent.sh — levanta ov-code-agent:latest (imagen Alpine)
+# 2-start-agent.sh — levanta el Code Agent (ov-code-agent:latest)
 #
 # Uso:
 #   PAT=<azure-pat> ./2-start-agent.sh
-#   (o define PAT y AZURE_USERNAME en .env.local)
+#   (o define PAT en .env.local)
 
 set -euo pipefail
 
@@ -16,15 +16,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 docker run -d \
   --name ov-code-agent \
   -p 5000:5000 \
+  -e GRADLE_USERNAME="${AZURE_USERNAME}" \
+  -e GRADLE_DEV_PASSWORD="${PAT}" \
   -e GIT_USERNAME="${AZURE_USERNAME}" \
   -e GIT_PAT="${PAT}" \
+  -e REPO_PATH=/repos/ov-arizona-backend-ecuador \
   ${N8N_CALLBACK_URL:+-e N8N_CALLBACK_URL="${N8N_CALLBACK_URL}"} \
-  ${BUSINESS_EXCEL_PASSWORD:+-e BUSINESS_EXCEL_PASSWORD="${BUSINESS_EXCEL_PASSWORD}"} \
   -v ov-agent-data:/data \
-  -v ov-repo-lite:/repos \
   ov-code-agent:latest
 
-echo "Levantando (primer arranque clona el repo — puede tardar 1-2 min)..."
+echo "Levantando..."
 until curl -sf http://localhost:5000/health > /dev/null 2>&1; do
     printf "."
     sleep 5

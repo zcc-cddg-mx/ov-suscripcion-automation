@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 2-start-agent.sh — levanta ov-code-agent:latest (imagen Alpine)
+# start-lite.sh — levanta ov-code-agent-lite:latest (imagen Alpine)
 #
 # Uso:
-#   PAT=<azure-pat> ./2-start-agent.sh
+#   PAT=<azure-pat> ./start-lite.sh
 #   (o define PAT y AZURE_USERNAME en .env.local)
 
 set -euo pipefail
@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${AZURE_USERNAME:?set AZURE_USERNAME in .env.local or environment}"
 
 docker run -d \
-  --name ov-code-agent \
+  --name ov-code-agent-lite \
   -p 5000:5000 \
   -e GIT_USERNAME="${AZURE_USERNAME}" \
   -e GIT_PAT="${PAT}" \
@@ -22,7 +22,7 @@ docker run -d \
   ${BUSINESS_EXCEL_PASSWORD:+-e BUSINESS_EXCEL_PASSWORD="${BUSINESS_EXCEL_PASSWORD}"} \
   -v ov-agent-data:/data \
   -v ov-repo-lite:/repos \
-  ov-code-agent:latest
+  ov-code-agent-lite:latest
 
 echo "Levantando (primer arranque clona el repo — puede tardar 1-2 min)..."
 until curl -sf http://localhost:5000/health > /dev/null 2>&1; do
