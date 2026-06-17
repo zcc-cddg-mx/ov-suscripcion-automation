@@ -160,6 +160,18 @@ def _load_cotizador_drivers_age(
             age_from = age_int
             age_to = age_int
 
+        # Validate factors — every cell must be numeric
+        bad = [
+            (i, v) for i, v in enumerate(factors)
+            if not isinstance(v, (int, float))
+        ]
+        if bad:
+            col_names = _COTIZADOR_FACTOR_COLS
+            details = ", ".join(f"{col_names[i]}={v!r}" for i, v in bad)
+            raise ValueError(
+                f"Age {age_str}: non-numeric factor(s) in EDAD_INPUT of {path}: {details}"
+            )
+
         data.append([age_from, age_to] + factors)
 
     if not data:

@@ -18,11 +18,13 @@ POST /run — multipart/form-data:
     commit   = true
     compile  = true
 
-  Tipo 2 — rules (JSON, sin archivo):
-    Content-Type: application/json
-    {"command": "rules", "ticket": "RITM2500000",
-     "input": "data/raw.xlsx", "entity": "VHPlanRules",
-     "commit": true, "compile": true}
+  Tipo 2 — rules (archivo Excel adjunto):
+    file     = <Cotizador_Motor.xlsx>
+    command  = rules
+    ticket   = RITM2500000
+    entity   = VHDriversAge
+    commit   = true
+    compile  = true
 
   El archivo recibido se guarda en /data/uploads/<ticket>_<timestamp>_<filename>
   antes de encolar la tarea. La ruta queda registrada en SQLite (input_path).
@@ -130,13 +132,19 @@ def health():
     return jsonify({"status": "ok", "service": "code-agent"})
 
 
-_REQUIRED_FIELDS = ("file", "command", "ticket", "year", "month")
+_REQUIRED_COMMON = ("file", "command", "ticket")
+_REQUIRED_BY_COMMAND = {
+    "ren-data": ("year", "month"),
+    "rules":    ("entity",),
+}
 
 
 def _parse_request() -> tuple[dict, str]:
     """Parse multipart/form-data request, validate required fields, save uploaded file.
 
-    Required fields: file, command, ticket, year, month.
+    Common required fields: file, command, ticket.
+    ren-data also requires: year, month.
+    rules    also requires: entity.
     Raises ValueError with a descriptive message if any are missing.
     Returns (payload_dict, input_path).
     """
@@ -145,21 +153,29 @@ def _parse_request() -> tuple[dict, str]:
 
     payload = {k: v for k, v in request.form.items()}
 
-    # Validate all required fields up front — accumulate all missing ones
+    # Validate common required fields first
     missing = []
-    for field in _REQUIRED_FIELDS:
+    for field in _REQUIRED_COMMON:
         if field == "file":
             f = request.files.get("file")
             if not f or not f.filename:
                 missing.append("file")
         elif not payload.get(field):
             missing.append(field)
+
+    # Validate command-specific required fields
+    command = payload.get("command", "")
+    for field in _REQUIRED_BY_COMMAND.get(command, ()):
+        if not payload.get(field):
+            missing.append(field)
+
     if missing:
         raise ValueError(f"Missing required field(s): {', '.join(missing)}")
 
-    # Coerce numeric and boolean fields
-    payload["year"] = int(payload["year"])
-    payload["month"] = int(payload["month"])
+    # Coerce numeric and boolean fields — only when present
+    for field in ("year", "month"):
+        if payload.get(field):
+            payload[field] = int(payload[field])
     for field in ("commit", "compile"):
         if field in payload:
             payload[field] = payload[field].lower() in ("true", "1", "yes")

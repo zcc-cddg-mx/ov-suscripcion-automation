@@ -1,18 +1,28 @@
 """Tests for the HTTP API listener (app.py).
 
 Uses Flask test client — no real server, no git operations.
-All migration logic is mocked so these tests are fast and self-contained.
+Migration logic is mocked so these tests are fast and self-contained.
+
+Architecture:
+  POST /run → 202 Accepted immediately (queued | rejected)
+  GET  /status/<task_id> → task state from SQLite
+  GET  /tasks → recent task list
+
+All /run requests must use multipart/form-data with a real file attachment.
 """
 
 from __future__ import annotations
 
-import json
+import io
+import os
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
+os.environ.setdefault("TASKS_DB", "/tmp/test_tasks_api.db")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import app as app_module
@@ -21,10 +31,23 @@ from src.build_check import BuildCheckError
 
 
 @pytest.fixture
-def client():
+def client(tmp_path):
     app.config["TESTING"] = True
-    with app.test_client() as c:
-        yield c
+    with patch("app._UPLOADS_DIR", tmp_path / "uploads"):
+        with app.test_client() as c:
+            yield c
+
+
+def _multipart(command: str, ticket: str = "INC001", extra: dict | None = None) -> dict:
+    """Build a multipart/form-data dict with a dummy xlsx file."""
+    data: dict = {
+        "file": (io.BytesIO(b"PK\x03\x04dummy"), "input.xlsx", "application/octet-stream"),
+        "command": command,
+        "ticket": ticket,
+    }
+    if extra:
+        data.update(extra)
+    return data
 
 
 # ── /health ───────────────────────────────────────────────────────────────────
@@ -35,7 +58,7 @@ class TestHealth:
         assert r.status_code == 200
 
     def test_returns_ok_json(self, client) -> None:
-        data = r = client.get("/health").get_json()
+        data = client.get("/health").get_json()
         assert data["status"] == "ok"
         assert data["service"] == "code-agent"
 
@@ -43,8 +66,8 @@ class TestHealth:
 # ── /run — request validation ─────────────────────────────────────────────────
 
 class TestRunRequestValidation:
-    def test_non_json_body_returns_400(self, client) -> None:
-        r = client.post("/run", data="not json", content_type="text/plain")
+    def test_wrong_content_type_returns_400(self, client) -> None:
+        r = client.post("/run", data="not multipart", content_type="text/plain")
         assert r.status_code == 400
         assert r.get_json()["status"] == "error"
 
@@ -52,127 +75,97 @@ class TestRunRequestValidation:
         r = client.post("/run")
         assert r.status_code == 400
 
-    def test_missing_command_returns_422(self, client) -> None:
-        r = client.post("/run", json={"ticket": "INC001", "input": "x.xlsx"})
-        assert r.status_code == 422
+    def test_missing_file_returns_400(self, client) -> None:
+        r = client.post("/run", data={"command": "ren-data", "ticket": "INC001",
+                                      "year": "2026", "month": "8"},
+                        content_type="multipart/form-data")
+        assert r.status_code == 400
+        assert "file" in r.get_json()["error"].lower()
+
+    def test_ren_data_missing_year_returns_400(self, client) -> None:
+        data = _multipart("ren-data", extra={"month": "8"})
+        r = client.post("/run", data=data, content_type="multipart/form-data")
+        assert r.status_code == 400
+        assert "year" in r.get_json()["error"].lower()
+
+    def test_ren_data_missing_month_returns_400(self, client) -> None:
+        data = _multipart("ren-data", extra={"year": "2026"})
+        r = client.post("/run", data=data, content_type="multipart/form-data")
+        assert r.status_code == 400
+        assert "month" in r.get_json()["error"].lower()
+
+    def test_rules_missing_entity_returns_400(self, client) -> None:
+        data = _multipart("rules")
+        r = client.post("/run", data=data, content_type="multipart/form-data")
+        assert r.status_code == 400
+        assert "entity" in r.get_json()["error"].lower()
+
+    def test_rules_with_entity_accepted(self, client) -> None:
+        data = _multipart("rules", extra={"entity": "VHDriversAge"})
+        with patch("app.run_payload", return_value={"branch": None, "commit_id": None,
+                   "aux_branch": None, "base_name": "V_test", "module": "ams-rule"}), \
+             patch("app.load_config", return_value={"repo": "../ov-arizona-backend-ecuador"}):
+            r = client.post("/run", data=data, content_type="multipart/form-data")
+        assert r.status_code == 202
+        assert r.get_json()["status"] in ("queued", "rejected")
+
+
+# ── /run — accepted (202) ─────────────────────────────────────────────────────
+
+class TestRunAccepted:
+    def test_ren_data_returns_202(self, client) -> None:
+        data = _multipart("ren-data", extra={"year": "2026", "month": "8"})
+        with patch("app.run_payload", return_value={"branch": None, "commit_id": None,
+                   "aux_branch": None, "base_name": "V_test", "module": "ams-policy"}), \
+             patch("app.load_config", return_value={"repo": "../ov-arizona-backend-ecuador"}):
+            r = client.post("/run", data=data, content_type="multipart/form-data")
+        assert r.status_code == 202
         body = r.get_json()
-        assert body["status"] == "error"
-        assert "command" in body["error"].lower()
+        assert body["status"] in ("queued", "rejected")
+        assert "task_id" in body
 
-    def test_unknown_command_returns_422(self, client) -> None:
-        r = client.post("/run", json={
-            "command": "infra-change", "ticket": "INC001", "input": "x.xlsx"
-        })
-        assert r.status_code == 422
-        assert r.get_json()["status"] == "error"
+    def test_rules_returns_202(self, client) -> None:
+        data = _multipart("rules", extra={"entity": "VHDriversAge"})
+        with patch("app.run_payload", return_value={"branch": None, "commit_id": None,
+                   "aux_branch": None, "base_name": "V_test", "module": "ams-rule"}), \
+             patch("app.load_config", return_value={"repo": "../ov-arizona-backend-ecuador"}):
+            r = client.post("/run", data=data, content_type="multipart/form-data")
+        assert r.status_code == 202
 
-
-# ── /run — success path ───────────────────────────────────────────────────────
-
-_REN_DATA_PAYLOAD = {
-    "command": "ren-data",
-    "ticket": "ZNRX-67108",
-    "input": "requirements/renovaciones/2026/agosto/baseticketAgosto2026.xlsx",
-    "year": 2026,
-    "month": 8,
-    "commit": False,
-}
-
-_RULES_PAYLOAD = {
-    "command": "rules",
-    "ticket": "RITM2500000",
-    "input": "data/raw.xlsx",
-    "entity": "VHPlanRules",
-    "commit": False,
-}
-
-_MOCK_RESULT = {
-    "branch": None,
-    "commit_id": None,
-    "aux_branch": None,
-    "base_name": "V2026_01_01_00_00_00__ZNRX_67108_VH_ren_data_ago_2026",
-    "module": "ams-policy",
-}
-
-_MOCK_CONFIG = {"repo": "../ov-arizona-backend-ecuador"}
+    def test_task_id_in_response(self, client) -> None:
+        data = _multipart("ren-data", extra={"year": "2026", "month": "8"})
+        with patch("app.run_payload", return_value={"branch": None, "commit_id": None,
+                   "aux_branch": None, "base_name": "V_test", "module": "ams-policy"}), \
+             patch("app.load_config", return_value={"repo": "../ov-arizona-backend-ecuador"}):
+            body = client.post("/run", data=data, content_type="multipart/form-data").get_json()
+        assert len(body["task_id"]) == 8
 
 
-class TestRunSuccess:
-    def test_ren_data_returns_success_status(self, client) -> None:
-        with patch("app.run_payload", return_value=_MOCK_RESULT), \
-             patch("app.load_config", return_value=_MOCK_CONFIG):
-            r = client.post("/run", json=_REN_DATA_PAYLOAD)
+# ── /status and /tasks ────────────────────────────────────────────────────────
+
+class TestStatusAndTasks:
+    def test_unknown_task_returns_404(self, client) -> None:
+        r = client.get("/status/nonexistent")
+        assert r.status_code == 404
+
+    def test_tasks_returns_list(self, client) -> None:
+        r = client.get("/tasks")
         assert r.status_code == 200
-        assert r.get_json()["status"] == "success"
+        assert isinstance(r.get_json(), list)
 
-    def test_response_contains_required_fields(self, client) -> None:
-        with patch("app.run_payload", return_value=_MOCK_RESULT), \
-             patch("app.load_config", return_value=_MOCK_CONFIG):
-            body = client.post("/run", json=_REN_DATA_PAYLOAD).get_json()
-        for field in ("status", "branch", "commit_id", "repo", "build_status", "summary"):
-            assert field in body, f"Missing field: {field}"
-
-    def test_repo_name_extracted_from_config(self, client) -> None:
-        with patch("app.run_payload", return_value=_MOCK_RESULT), \
-             patch("app.load_config", return_value=_MOCK_CONFIG):
-            body = client.post("/run", json=_REN_DATA_PAYLOAD).get_json()
-        assert body["repo"] == "ov-arizona-backend-ecuador"
-
-    def test_rules_payload_also_returns_success(self, client) -> None:
-        mock_result = {**_MOCK_RESULT, "base_name": "V2026_01_01__RITM_2500000_VHPlanRules",
-                       "module": "ams-rule"}
-        with patch("app.run_payload", return_value=mock_result), \
-             patch("app.load_config", return_value=_MOCK_CONFIG):
-            r = client.post("/run", json=_RULES_PAYLOAD)
+    def test_tasks_limit_param(self, client) -> None:
+        r = client.get("/tasks?limit=5")
         assert r.status_code == 200
-        assert r.get_json()["status"] == "success"
 
-    def test_no_commit_summary_says_generated(self, client) -> None:
-        with patch("app.run_payload", return_value=_MOCK_RESULT), \
-             patch("app.load_config", return_value=_MOCK_CONFIG):
-            body = client.post("/run", json=_REN_DATA_PAYLOAD).get_json()
-        assert "generated" in body["summary"].lower()
-        assert body["branch"] is None
-        assert body["commit_id"] is None
+    def test_queued_task_visible_in_status(self, client) -> None:
+        data = _multipart("ren-data", extra={"year": "2026", "month": "8"})
+        with patch("app.run_payload", return_value={"branch": None, "commit_id": None,
+                   "aux_branch": None, "base_name": "V_test", "module": "ams-policy"}), \
+             patch("app.load_config", return_value={"repo": "../ov-arizona-backend-ecuador"}):
+            body = client.post("/run", data=data, content_type="multipart/form-data").get_json()
 
-    def test_with_commit_summary_contains_branch(self, client) -> None:
-        result_with_commit = {
-            **_MOCK_RESULT,
-            "branch": "feature/ZNRX_67108_renov_agosto",
-            "commit_id": "abc123def456",
-        }
-        with patch("app.run_payload", return_value=result_with_commit), \
-             patch("app.load_config", return_value=_MOCK_CONFIG):
-            body = client.post("/run", json={**_REN_DATA_PAYLOAD, "commit": True}).get_json()
-        assert "feature/ZNRX_67108_renov_agosto" in body["summary"]
-        assert body["commit_id"] == "abc123def456"
-
-
-# ── /run — error paths ────────────────────────────────────────────────────────
-
-class TestRunErrors:
-    def test_value_error_returns_422(self, client) -> None:
-        with patch("app.run_payload", side_effect=ValueError("Validation failed: bad input")):
-            r = client.post("/run", json=_REN_DATA_PAYLOAD)
-        assert r.status_code == 422
-        body = r.get_json()
-        assert body["status"] == "error"
-        assert "Validation failed" in body["error"]
-        assert body["build_status"] is None
-
-    def test_unexpected_exception_returns_500(self, client) -> None:
-        with patch("app.run_payload", side_effect=RuntimeError("git push failed")):
-            r = client.post("/run", json=_REN_DATA_PAYLOAD)
-        assert r.status_code == 500
-        body = r.get_json()
-        assert body["status"] == "error"
-        assert body["build_status"] is None
-
-    def test_build_check_error_returns_422_with_failed_status(self, client) -> None:
-        with patch("app.run_payload", side_effect=BuildCheckError("Compilation failed:\nerror: ';' expected")):
-            r = client.post("/run", json=_REN_DATA_PAYLOAD)
-        assert r.status_code == 422
-        body = r.get_json()
-        assert body["status"] == "error"
-        assert body["build_status"] == "failed"
-        assert "Compilation failed" in body["error"]
+        task_id = body.get("task_id")
+        if task_id:
+            r = client.get(f"/status/{task_id}")
+            assert r.status_code == 200
+            assert r.get_json()["task_id"] == task_id
