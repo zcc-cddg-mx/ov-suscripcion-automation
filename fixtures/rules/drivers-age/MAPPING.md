@@ -2,8 +2,15 @@
 
 ## Paso 1 — Archivo que entrega negocio
 
-`fixtures/rules/business-reference/Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx`
-(contraseña: variable de entorno `BUSINESS_EXCEL_PASSWORD`, guardada en `.env.local`)
+Disponibles en `fixtures/rules/business-reference/`:
+
+| Versión | Archivo | Notas |
+|---|---|---|
+| V23 | `Cotizador_MotorIndividualV23.xlsx` | Histórico |
+| V24 | `Cotizador_MotorIndividualV24.xlsx` | Histórico |
+| V25 | `Cotizador_MotorIndividualV25.xlsx` | **Actual** — usar para nuevas migraciones |
+
+Contraseña: variable de entorno `BUSINESS_EXCEL_PASSWORD` (guardada en `.env.local`).
 
 | Atributo | Valor |
 |---|---|
@@ -50,14 +57,23 @@ Columnas de factor: mapeo directo, misma posición, mismo nombre normalizado:
 
 ## Paso 3 — Archivo de salida (migración Flyway)
 
-`VHDriversAge_reference.xlsx` — 4 hojas, generado por `src/generator_rules.py`:
+`VHDriversAge_reference.xlsx` — copia de la última migración real del sistema
+(`V2026_02_05_12_00_00__INC23253455_VHDriversAge.xlsx`, versión 6, febrero 2026).
+Sirve como base para auto-detectar la versión actual e incrementarla.
 
 | Hoja | Contenido |
 |---|---|
 | `RuleKit` | Solo encabezados (sin datos) |
 | `RatingList` | 2 filas: OLD (versión anterior) + NEW (versión nueva, incrementada en +1) |
-| `VHDriversAge` | 67 filas de datos (65 edades + `80+`→`80-998` + sentinel `999-999`) |
-| `LOV` | 96 filas estáticas desde `fixtures/lov_ams_rule.json` |
+| `VHDriversAge` | 65 filas de datos (63 edades individuales + `80+`→`80-998` + sentinel `999-999`) |
+| `LOV` | 52 filas estáticas desde `fixtures/rules/plan-rules/lov_ams_rule.json` |
+
+### Discrepancia conocida — edad 67, DAPA_CM
+
+El cotizador V25 actual entrega `DAPA_CM=0.905193266` para edad 67. La última migración
+cargada en el sistema (febrero 2026) tiene `0.985193266`. Negocio no ha solicitado
+actualizar el sistema con el valor del cotizador V25. Cuando lo haga, el generador
+producirá automáticamente el valor correcto desde la fuente de verdad (cotizador).
 
 ### Columnas del sheet VHDriversAge
 
@@ -92,7 +108,7 @@ ID | Rating list | Drivers age from | Drivers age to | DAPA_FREC | DAPA_CM | DAT
 
 ```
 negocio entrega:
-  Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx (protegido con contraseña)
+  Cotizador_MotorIndividualV25.xlsx (protegido con contraseña)
       └─ hoja "Relatividades" → tabla EDAD_INPUT (65+1 filas)
                                                        │
                             transformación generador   │
@@ -100,8 +116,8 @@ negocio entrega:
   VyyyyMMddHHmmss__TICKET_VHDriversAge.xlsx
       ├─ RuleKit (headers)
       ├─ RatingList (OLD v_n + NEW v_n+1)
-      ├─ VHDriversAge (67 filas: 17→79 + 80-998 + 999-999)
-      └─ LOV (96 filas estáticas)
+      ├─ VHDriversAge (65 filas: 17→79 + 80-998 + 999-999)
+      └─ LOV (52 filas estáticas)
   +
   VyyyyMMddHHmmss__TICKET_VHDriversAge.java  (clase vacía)
 ```

@@ -104,7 +104,7 @@ BUSINESS_EXCEL_PASSWORD=Motor2023* conda run -n ov-suscripcion \
 ```bash
 BUSINESS_EXCEL_PASSWORD=Motor2023* conda run -n ov-suscripcion \
   python main.py rules \
-    --input "fixtures/rules/business-reference/Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx" \
+    --input "fixtures/rules/business-reference/Cotizador_MotorIndividualV25.xlsx" \
     --entity VHDriversAge \
     --ticket TEST99999 \
     --repo ../ov-arizona-backend-ecuador
@@ -115,7 +115,7 @@ BUSINESS_EXCEL_PASSWORD=Motor2023* conda run -n ov-suscripcion \
 ```bash
 BUSINESS_EXCEL_PASSWORD=Motor2023* conda run -n ov-suscripcion \
   python main.py rules \
-    --input "fixtures/rules/business-reference/Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx" \
+    --input "fixtures/rules/business-reference/Cotizador_MotorIndividualV25.xlsx" \
     --entity VHDriversAge \
     --ticket RITM-TEST999 \
     --repo ../ov-arizona-backend-ecuador \

@@ -7,7 +7,7 @@ De aquí nacen la mayoría de los cambios para el módulo `ams-rule`.
 
 | Archivo | Descripción |
 |---|---|
-| `Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx` | Base actuarial completa — hoja `Relatividades` con todas las tablas de factores por variable (EDAD_INPUT, GENERO_INPUT, ZONA_EMBLEM, TIPOVEHICULO, etc.) |
+| `Cotizador_MotorIndividualV25.xlsx` | Base actuarial completa — hoja `Relatividades` con todas las tablas de factores por variable (EDAD_INPUT, GENERO_INPUT, ZONA_EMBLEM, TIPOVEHICULO, etc.) |
 
 > Los xlsx están excluidos de git (`fixtures/**/*.xlsx`). Se distribuyen por separado.
 > Contraseña: variable de entorno `BUSINESS_EXCEL_PASSWORD` (ver `.env.local`).
