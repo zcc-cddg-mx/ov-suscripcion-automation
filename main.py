@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import tempfile
 from datetime import datetime
@@ -132,7 +133,8 @@ def cmd_rules(args: argparse.Namespace) -> dict:
         java_out = tmp_path / f"{base_name}.java"
 
         log("GEN", f"Generating Excel: {xlsx_out.name}")
-        generator_rules.generate(raw_input, xlsx_out, entity_name, resources_path)
+        excel_password = os.environ.get("BUSINESS_EXCEL_PASSWORD")
+        generator_rules.generate(raw_input, xlsx_out, entity_name, resources_path, password=excel_password)
 
         log("GEN", f"Generating Java class: {java_out.name}")
         java_src = java_template.generate(base_name, module)

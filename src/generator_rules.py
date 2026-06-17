@@ -8,6 +8,7 @@ increments it, and produces a Flyway-ready Excel with sheets:
 
 from __future__ import annotations
 
+import io
 import json
 import re
 from datetime import datetime
@@ -87,6 +88,89 @@ def _load_raw_rules(path: Path) -> tuple[list[str], list[list[Any]]]:
     return headers, data
 
 
+_COTIZADOR_FACTOR_COLS = [
+    "DAPA_FREC", "DAPA_CM", "DATO_FREC", "DATO_CM",
+    "RC_FREC", "RC_CM", "ROPA_FREC", "ROPA_CM", "ROTO_FREC", "ROTO_CM",
+]
+
+_COTIZADOR_DRIVERS_AGE_HEADERS = [
+    "Drivers age from", "Drivers age to",
+] + _COTIZADOR_FACTOR_COLS
+
+
+def _open_workbook(path: Path, password: str | None = None) -> openpyxl.Workbook:
+    """Open an xlsx, decrypting with *password* if provided."""
+    if password:
+        import msoffcrypto
+        with open(path, "rb") as fh:
+            office = msoffcrypto.OfficeFile(fh)
+            office.load_key(password=password)
+            buf = io.BytesIO()
+            office.decrypt(buf)
+        return openpyxl.load_workbook(buf, data_only=True)
+    return openpyxl.load_workbook(path, data_only=True)
+
+
+def _load_cotizador_drivers_age(
+    path: Path, password: str | None = None
+) -> tuple[list[str], list[list[Any]]]:
+    """
+    Extract VHDriversAge rows from the cotizador Relatividades sheet.
+
+    Locates the EDAD_INPUT table (header row where col B = 'EDAD_INPUT'),
+    reads factor columns C–L (10 columns), and applies:
+      - ages '17'–'79'  → from=int(age), to=int(age)
+      - age  '80+'      → from=80, to=998
+      - 'P.JURIDICA'    → skipped (legal entity, not a person age)
+      - sentinel row    → from=999, to=999, all factors=1  (always appended)
+    """
+    wb = _open_workbook(path, password)
+    ws = wb["Relatividades"]
+    rows = list(ws.iter_rows(values_only=True))
+
+    # Find EDAD_INPUT header row (col index 1 = B)
+    start = None
+    for i, row in enumerate(rows):
+        if row[1] == "EDAD_INPUT":
+            start = i + 1  # data starts on next row
+            break
+    if start is None:
+        raise ValueError(f"EDAD_INPUT table not found in 'Relatividades' sheet of {path}")
+
+    data: list[list[Any]] = []
+    for row in rows[start:]:
+        age_val = row[1]
+        if age_val is None:
+            break  # end of table (blank row)
+        age_str = str(age_val).strip()
+        if age_str == "P.JURIDICA":
+            continue  # skip — legal entity row, not an age
+
+        factors = list(row[2:12])  # columns C–L (10 factor columns)
+
+        if age_str == "80+":
+            age_from, age_to = 80, 998
+        else:
+            try:
+                age_int = int(age_str)
+            except ValueError:
+                raise ValueError(
+                    f"Unexpected age value '{age_str}' in EDAD_INPUT table of {path}"
+                )
+            age_from = age_int
+            age_to = age_int
+
+        data.append([age_from, age_to] + factors)
+
+    if not data:
+        raise ValueError(f"No data rows found in EDAD_INPUT table of {path}")
+
+    # Append sentinel row (999–999, all factors = 1)
+    data.append([999, 999] + [1] * 10)
+
+    return _COTIZADOR_DRIVERS_AGE_HEADERS, data
+
+
 def _write_rulekit(ws: Worksheet) -> None:
     ws.append(_RULEKIT_HEADERS)
 
@@ -131,20 +215,32 @@ def _write_lov(ws: Worksheet) -> None:
         ws.append(row)
 
 
+_COTIZADOR_LOADERS: dict[str, Any] = {
+    "VHDriversAge": _load_cotizador_drivers_age,
+}
+
+
 def generate(
     raw_input: Path,
     output: Path,
     entity_name: str,
     repo_resources_path: Path,
+    password: str | None = None,
 ) -> None:
     """
     Transform *raw_input* into a Flyway-ready rules Excel at *output*.
 
-    *entity_name*: e.g. "VHPlanRules"
+    *entity_name*: e.g. "VHPlanRules", "VHDriversAge"
     *repo_resources_path*: path to ams-rule/flyway/src/main/resources/db/migration/
+    *password*: Excel password if the input file is encrypted (e.g. cotizador files)
     """
     entity_code = _entity_to_code(entity_name)
-    raw_headers, raw_data = _load_raw_rules(raw_input)
+
+    loader = _COTIZADOR_LOADERS.get(entity_name)
+    if loader is not None:
+        raw_headers, raw_data = loader(raw_input, password)
+    else:
+        raw_headers, raw_data = _load_raw_rules(raw_input)
 
     last_migration = _find_last_migration(repo_resources_path, entity_name)
     if last_migration is None:
