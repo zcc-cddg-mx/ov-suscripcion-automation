@@ -27,7 +27,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures"
-_LOV_FILE = _FIXTURES / "lov_ams_policy.json"
+_LOV_FILE = _FIXTURES / "policy/ren-data/lov_ams_policy.json"
 
 # Accepted column name aliases → canonical name
 _COL_ALIASES: dict[str, str] = {

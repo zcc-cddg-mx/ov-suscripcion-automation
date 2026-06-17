@@ -20,7 +20,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures"
-_LOV_FILE = _FIXTURES / "lov_ams_rule.json"
+_LOV_FILE = _FIXTURES / "rules/plan-rules/lov_ams_rule.json"
 
 _RULEKIT_HEADERS = ["ID", "Code", "Name", "Description", "Version", "State"]
 
@@ -214,6 +214,8 @@ def _write_lov(ws: Worksheet) -> None:
     for row in lov_data:
         ws.append(row)
 
+
+_COTIZADOR_FILE = _FIXTURES / "rules/business-reference"
 
 _COTIZADOR_LOADERS: dict[str, Any] = {
     "VHDriversAge": _load_cotizador_drivers_age,

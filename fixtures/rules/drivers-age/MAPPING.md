@@ -2,7 +2,8 @@
 
 ## Paso 1 — Archivo que entrega negocio
 
-`Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx` (contraseña: variable de entorno `BUSINESS_EXCEL_PASSWORD`)
+`fixtures/rules/business-reference/Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx`
+(contraseña: variable de entorno `BUSINESS_EXCEL_PASSWORD`, guardada en `.env.local`)
 
 | Atributo | Valor |
 |---|---|

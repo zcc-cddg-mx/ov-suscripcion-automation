@@ -12,8 +12,8 @@ from src.generator_rules import (
 )
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures"
-_RULES_REF = _FIXTURES / "VHPlanRules_reference.xlsx"
-_COTIZADOR = _FIXTURES / "rules/drivers-age/Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx"
+_RULES_REF = _FIXTURES / "rules/plan-rules/VHPlanRules_reference.xlsx"
+_COTIZADOR = _FIXTURES / "rules/business-reference/Cotizador_MotorIndividualV25- Modelos Enero2026.xlsx"
 _COTIZADOR_PASSWORD = os.environ.get("BUSINESS_EXCEL_PASSWORD", "Motor2023*")
 
 # Path to a real ams-rule migration directory (relative to this file's parent parent parent)
