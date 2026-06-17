@@ -1,0 +1,84 @@
+# ov-agent-base — imagen base para ov-code-agent
+#
+# Contiene: Ubuntu 24.04 + Temurin 8 JDK + Gradle 6.8.3 + baked plugins
+#           + Python venv + dependencias pip
+#           + /repos/ov-arizona-backend-ecuador (clon del repo backend)
+#           + /root/.gradle/caches poblado con todas las dependencias del proyecto
+#           + /repos/ov-arizona-backend-ecuador/.project/local-repo (repo Maven local)
+#
+# El cache elimina descargas desde Azure Artifacts en compilaciones normales.
+# Las credenciales Azure Artifacts se mantienen como fallback para dependencias nuevas.
+# GIT_PAT y GRADLE_DEV_PASSWORD se borran en el mismo RUN — no quedan en capas finales.
+#
+# Build:
+#   PAT=<azure-pat> ./build-base.sh
+
+FROM ams-ubuntu-lite:latest
+
+ARG GIT_PAT
+
+# ─────────────────────────────────────────────────────────────────────────────
+# System dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+RUN apt-get -qq update && \
+    apt-get -qq -y install --no-install-recommends \
+        python3-pip \
+        python3-venv \
+        git \
+        unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gradle 6.8.3
+# ─────────────────────────────────────────────────────────────────────────────
+COPY gradle/gradle-6.8.3.zip /tmp/gradle.zip
+RUN unzip -q /tmp/gradle.zip -d /opt && \
+    ln -s /opt/gradle-6.8.3/bin/gradle /usr/local/bin/gradle && \
+    rm /tmp/gradle.zip
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gradle plugin JARs bakeados (gorylenko y otros no publicados en Azure Artifacts)
+# ─────────────────────────────────────────────────────────────────────────────
+COPY gradle/plugins/maven2 /opt/gradle-plugins/maven2
+COPY gradle/init.d/baked-plugins.gradle /root/.gradle/init.d/baked-plugins.gradle
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Python venv + dependencias
+# ─────────────────────────────────────────────────────────────────────────────
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt flask==3.1.1
+
+ENV JAVA_HOME=/usr/lib/jvm/temurin-8-jdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Clonar repo backend y poblar ramas principales
+# ─────────────────────────────────────────────────────────────────────────────
+RUN git clone \
+        "https://ZurichInsurance-EC:${GIT_PAT}@dev.azure.com/ZurichInsurance-EC/Oficina-Virtual-ZEC/_git/ov-arizona-backend-ecuador" \
+        /repos/ov-arizona-backend-ecuador && \
+    cd /repos/ov-arizona-backend-ecuador && \
+    for branch in main develop test developer; do \
+        git fetch origin ${branch}:${branch} 2>/dev/null || true; \
+    done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. local-repo Maven — copiado desde gradle/local-repo/ (gitignoreado,
+#    distribuido via gradle/local-repo.tar.gz).
+#    Credenciales Azure Artifacts se mantienen como fallback para dependencias
+#    nuevas que no estén en el local-repo.
+# ─────────────────────────────────────────────────────────────────────────────
+COPY gradle/local-repo /repos/ov-arizona-backend-ecuador/.project/local-repo
+RUN echo "[base] local-repo OK — $(du -sh /repos/ov-arizona-backend-ecuador/.project/local-repo | cut -f1)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Aplicar bloques local-repo en build.gradle / dependencies.gradle
+#    via setup-local-gradle.sh (idempotente).
+# ─────────────────────────────────────────────────────────────────────────────
+COPY gradle/repo-local /opt/gradle-repo-local
+RUN chmod +x /opt/gradle-repo-local/setup-local-gradle.sh && \
+    BACKEND_DIR=/repos/ov-arizona-backend-ecuador \
+        /opt/gradle-repo-local/setup-local-gradle.sh

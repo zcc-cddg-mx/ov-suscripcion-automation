@@ -259,12 +259,35 @@ El volumen persiste entre reinicios del contenedor. Si se destruye el volumen se
 
 ## Scripts operativos
 
-| Script | Variante | Qué hace |
+Los scripts viven en la raíz del proyecto. `docker/full/` y `docker/lite/` son copias de referencia — los scripts activos son los de la raíz.
+
+| Script (raíz) | Variante | Qué hace |
 |---|---|---|
 | `1-build-base.sh` | Full | Extrae local-repo.tar.gz + `docker build Dockerfile.base`. Opcional: push a registry. |
 | `2-start-agent.sh` | Full | `docker run -d` con env vars y volumen. Espera hasta que `/health` responde. |
 | `3-test-agent.sh` | Ambas | 8 casos de prueba HTTP: health, validación 400, sin commit, con commit, con compile, concurrencia, historial, callback. |
 | `build-lite.sh` | Lite | `docker build Dockerfile.alpine`. Sin args de Gradle. Opcional: push a registry. |
+| `start-lite.sh` | Lite | `docker run -d` con `GIT_PAT`, volúmenes `/data` y `/repos`. Espera hasta que `/health` responde. |
+
+### Estructura de backup
+
+```
+docker/
+  full/   ← copia de los archivos de la variante full
+    Dockerfile
+    Dockerfile.base
+    docker-entrypoint.sh
+    1-build-base.sh
+    2-start-agent.sh
+    3-test-agent.sh
+  lite/   ← copia de los archivos de la variante lite
+    Dockerfile.alpine
+    docker-entrypoint-lite.sh
+    build-lite.sh
+    start-lite.sh
+```
+
+Los archivos activos (raíz del proyecto) son la fuente de verdad. Los de `docker/` son referencia estática — útiles para comparar versiones o restaurar un script sin buscar en git log.
 
 ---
 
