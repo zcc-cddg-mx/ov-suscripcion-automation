@@ -100,7 +100,7 @@ Naming convention: `V{YYYY_MM_DD_HH_MM_SS}__{TICKET_ID}_{Description}`
 ### Tipo 2 — `rules` (reglas de tarificación)
 - **Target module:** `ams-rule`
 - **Input:** Raw Excel with rule columns (no ID or Rating list — these are prepended automatically)
-- **Output sheets:** `RuleKit` (headers only) + `RatingList` (OLD/NEW version rows) + `{EntityName}` + `LOV` (static, 25 rows from `fixtures/lov_ams_rule.json`)
+- **Output sheets:** `RuleKit` (headers only) + `RatingList` (OLD/NEW version rows) + `{EntityName}` + `LOV` (copied from the last migration of the same entity — row count varies per entity)
 - **Version auto-detection:** reads the last `*_{EntityName}.xlsx` in the repo's migration directory, takes the NEW row version, and increments it by 1
 - **Formulas written as strings:** `=TODAY()` and `=TODAY()-(0.5/24)` are stored as formula strings in openpyxl (not evaluated values)
 
@@ -115,7 +115,9 @@ Adding a new module requires updating both `_MODULE_JAVA_PATH` and `_MODULE_RESO
 
 ## Fixtures
 
-`fixtures/lov_ams_policy.json` and `fixtures/lov_ams_rule.json` are static snapshots of the LOV sheets from the reference Excel files. They must be updated if the LOV content changes in the backend repo. The reference Excel files are kept alongside them for comparison.
+**`ren-data`:** `fixtures/policy/ren-data/lov_ams_policy.json` is a static snapshot (289 rows) of the LOV sheet for `ams-policy`. Must be updated if the LOV changes in the backend repo.
+
+**`rules`:** No LOV JSON. The generator reads the LOV directly from the last migration of the same entity (`_find_last_migration()` → `_write_lov()`). Each entity has its own LOV (14–351 rows depending on entity). The reference xlsx files in `fixtures/rules/<entity>/` serve as the source.
 
 ## Commit + push flow (`--commit`)
 

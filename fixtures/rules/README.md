@@ -31,14 +31,18 @@ De aquí nacen la mayoría de los cambios para el módulo `ams-rule`.
 
 ## Archivos en git por directorio
 
-Solo se versionan archivos de texto o runtime:
+Solo se versionan archivos de texto:
 
 | Archivo | En git | Motivo |
 |---|---|---|
-| `plan-rules/lov_ams_rule.json` | ✅ | Dependencia runtime del generador |
 | `drivers-age/MAPPING.md` | ✅ | Documentación del pipeline de transformación |
-| `drivers-age/VHDriversAge_reference.java` | ✅ | Plantilla clase Java (texto, pequeño) |
+| `drivers-age/PLAN.md` | ✅ | Flujo e2e y pasos de verificación |
+| `drivers-age/VHDriversAge_reference.java` | ✅ | Plantilla clase Java (vacía) |
 | `*.xlsx` | ❌ | Datos de negocio — distribuir por separado |
+
+> El LOV ya no se guarda en JSON. El generador lo lee directamente desde la última
+> migración de cada entidad (`_write_lov(last_migration)`). Cada entidad tiene su
+> propio LOV: VHDriversAge=52 filas, VHCoverClause=338, VHPlanSetup=351, etc.
 
 ---
 

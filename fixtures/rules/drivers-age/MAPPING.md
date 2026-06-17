@@ -66,7 +66,7 @@ Sirve como base para auto-detectar la versión actual e incrementarla.
 | `RuleKit` | Solo encabezados (sin datos) |
 | `RatingList` | 2 filas: OLD (versión anterior) + NEW (versión nueva, incrementada en +1) |
 | `VHDriversAge` | 65 filas de datos (63 edades individuales + `80+`→`80-998` + sentinel `999-999`) |
-| `LOV` | 52 filas estáticas desde `fixtures/rules/plan-rules/lov_ams_rule.json` |
+| `LOV` | 52 filas — copiadas desde la última migración de esta entidad (`_write_lov(last_migration)`) |
 
 ### Discrepancia conocida — edad 67, DAPA_CM
 
