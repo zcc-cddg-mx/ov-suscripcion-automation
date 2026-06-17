@@ -43,30 +43,23 @@ git config --global user.name  "${GIT_USERNAME}"
 echo "[entrypoint-lite] git credentials configured"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Clone repo on first start; update branches on restart
+# 3. Clone repo on first start; git pull on restart
 # ─────────────────────────────────────────────────────────────────────────────
+git config --global --add safe.directory "${REPO_PATH}"
+
 if [ ! -d "${REPO_PATH}/.git" ]; then
-    echo "[entrypoint-lite] cloning repo backend..."
+    echo "[entrypoint-lite] first start — cloning repo backend..."
     git clone \
         "https://ZurichInsurance-EC:${GIT_PAT}@dev.azure.com/ZurichInsurance-EC/Oficina-Virtual-ZEC/_git/ov-arizona-backend-ecuador" \
         "${REPO_PATH}"
     cd "${REPO_PATH}"
-    for branch in main develop test developer; do
-        git fetch origin "${branch}:${branch}" 2>/dev/null || true
-    done
     git checkout developer
-    echo "[entrypoint-lite] repo cloned OK"
+    echo "[entrypoint-lite] repo cloned OK — branch: developer"
 else
-    echo "[entrypoint-lite] updating repo branches..."
-    git config --global --add safe.directory "${REPO_PATH}"
+    echo "[entrypoint-lite] repo already present — pulling latest developer..."
     cd "${REPO_PATH}"
-    git fetch origin 2>&1 | sed 's/^/[entrypoint-lite] /' || true
-    for branch in main develop test developer; do
-        git fetch origin "${branch}:${branch}" 2>/dev/null && \
-            echo "[entrypoint-lite] branch ${branch} updated" || \
-            echo "[entrypoint-lite] branch ${branch} not found — skipping"
-    done
     git checkout developer
+    git pull origin developer 2>&1 | sed 's/^/[entrypoint-lite] /'
 fi
 
 cd /app
