@@ -76,6 +76,18 @@ ID | Rating list | Drivers age from | Drivers age to | DAPA_FREC | DAPA_CM | DAT
 
 ---
 
+## Errores esperados
+
+| Situación | Error |
+|---|---|
+| Contraseña incorrecta | `msoffcrypto.exceptions.InvalidKeyError` |
+| Archivo sin contraseña pasado sin `password=` | `zipfile.BadZipFile` |
+| `EDAD_INPUT` no encontrada en hoja `Relatividades` | `ValueError: EDAD_INPUT table not found in 'Relatividades'` |
+| Factor no numérico en celda de la tabla | `ValueError: Age XX: non-numeric factor(s) in EDAD_INPUT: DAPA_FREC='abc'` |
+| Sin migración previa en el repo destino | `FileNotFoundError: No previous migration found for VHDriversAge` |
+
+---
+
 ## Resumen del flujo
 
 ```

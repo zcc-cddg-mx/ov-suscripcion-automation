@@ -194,6 +194,18 @@ class TestCotizadorDriversAge:
         for row in data:
             assert len(row) == 12  # 2 age cols + 10 factors
 
+    def test_factor_values_match_reference(self) -> None:
+        """Spot-check first 5 and last 3 rows against VHDriversAge_reference.xlsx."""
+        ref_path = _FIXTURES / "rules/drivers-age/VHDriversAge_reference.xlsx"
+        if not ref_path.exists():
+            pytest.skip("VHDriversAge_reference.xlsx not present (distribute separately)")
+        _, data = _load_cotizador_drivers_age(_COTIZADOR, _COTIZADOR_PASSWORD)
+        ref_wb = openpyxl.load_workbook(ref_path, data_only=True)
+        ref_rows = list(ref_wb["VHDriversAge"].iter_rows(values_only=True))[1:]
+        ref_rows = [r for r in ref_rows if any(c is not None for c in r)]
+        for i in list(range(5)) + [-3, -2, -1]:
+            assert data[i] == pytest.approx(list(ref_rows[i][2:14]), rel=1e-9), f"Row {i} mismatch"
+
     def test_generate_full_pipeline(self, tmp_path: Path) -> None:
         """End-to-end: cotizador → VHDriversAge migration xlsx with correct structure."""
         out = tmp_path / "VHDriversAge_test.xlsx"

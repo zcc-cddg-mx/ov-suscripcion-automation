@@ -191,6 +191,7 @@ def _parse_request() -> tuple[dict, str]:
     log("RECV", f"file saved → {dest.name}")
 
     payload["input"] = str(dest)
+    payload["password"] = request.form.get("password")  # None si no viene
     return payload, str(dest)
 
 

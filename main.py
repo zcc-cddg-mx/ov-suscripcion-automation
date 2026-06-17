@@ -121,7 +121,7 @@ def cmd_rules(args: argparse.Namespace) -> dict:
     entity_name = args.entity
     ticket_id = args.ticket
     ticket_safe = _sanitize_ticket(ticket_id)
-    description = entity_name
+    description = args.description or entity_name
     compile_flag = getattr(args, "compile", True)
 
     resources_path = repo_root / placer._MODULE_RESOURCES_PATH[module]
@@ -133,7 +133,7 @@ def cmd_rules(args: argparse.Namespace) -> dict:
         java_out = tmp_path / f"{base_name}.java"
 
         log("GEN", f"Generating Excel: {xlsx_out.name}")
-        excel_password = os.environ.get("BUSINESS_EXCEL_PASSWORD")
+        excel_password = args.password or os.environ.get("BUSINESS_EXCEL_PASSWORD")
         generator_rules.generate(raw_input, xlsx_out, entity_name, resources_path, password=excel_password)
 
         log("GEN", f"Generating Java class: {java_out.name}")
@@ -212,6 +212,7 @@ def run_payload(payload: dict, repo_root: Path | None = None) -> dict:
         year=payload.get("year"),
         month=payload.get("month"),
         entity=payload.get("entity"),
+        password=payload.get("password"),
     )
 
     import time as _time
