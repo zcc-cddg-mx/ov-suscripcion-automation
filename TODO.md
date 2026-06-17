@@ -21,38 +21,24 @@
 
 ---
 
-## Pendiente — Integración con n8n
+## En curso — equipo n8n + operaciones
 
-- [ ] **Configurar URL real de n8n en producción** — descomentar `N8N_CALLBACK_URL` en `.env.local` y en el servidor SERVICIOSIAS con la URL definitiva (no webhook-test)
-- [ ] **Prueba end-to-end con n8n real** — disparar desde Jira → n8n → agente → callback → PR creado en Azure DevOps
-
----
-
-## Pendiente — Calidad y robustez
-
-- [x] **Timeout de tarea** — `BUILD_TIMEOUT_MINUTES` (default 20): mata el proceso Gradle si supera el límite y retorna `BuildCheckError`; lock liberado en el `finally`
-- [x] **Limpieza de uploads** — `cleanup_old_uploads()` borra archivos de `/data/uploads/` al arrancar; configurable con `RETENTION_DAYS` (default 90)
-- [x] **Limpieza de tareas SQLite** — `cleanup_old_records()` purga registros > `RETENTION_DAYS` días al arrancar
-- [x] **Retry del callback** — `_notify_n8n()` reintenta hasta 3 veces con backoff exponencial (2s, 4s, 8s) antes de descartar
+- [ ] **Configurar URL real de n8n en producción** — `N8N_CALLBACK_URL` con URL definitiva en SERVICIOSIAS
+- [ ] **Despliegue en SERVICIOSIAS** — imagen al registry, variables de entorno, volumen persistente
+- [ ] **Prueba end-to-end con n8n real** — Jira → n8n → agente → callback → PR en Azure DevOps
+- [ ] **Soporte `rules` end-to-end** — validar flujo completo de `command=rules` con multipart
+- [ ] **QA Agent: confirmar esquema BD DEV** — tablas/campos con equipo backend (§10 del contrato)
+- [ ] **QA Agent: implementar** — container Python, checks SQL + HTTP, callback n8n con retry
+- [ ] **QA Agent: configurar en n8n** — pipeline DEV completado → POST /validate → callback → Jira
 
 ---
 
-## Pendiente — Operaciones
+## Calidad y robustez — completado
 
-- [x] **Código publicado en Azure DevOps** — repo `ov-code-agent`, rama `test` (branch protection en main/develop requiere PR)
-- [ ] **Despliegue en SERVICIOSIAS** — subir imagen al registry interno, configurar variables de entorno, montar volumen persistente
-- [x] **`gradle/local-repo.tar.gz`** — definir mecanismo de distribución al equipo de release (SharePoint, pipeline, etc.) dado que no está en git (384M)
-- [x] **Renovar PAT** — PAT expuesto fue eliminado del historial git con `filter-repo`; generar nuevo PAT en Azure DevOps si aún no se hizo
-- [ ] **Soporte para tipo `rules`** — validar y probar el flujo completo de `command=rules` con archivo adjunto via multipart (actualmente solo `ren-data` fue probado end-to-end)
-
----
-
-## Pendiente — QA Agent (nuevo agente)
-
-- [x] **Contrato de diseño** — `architecture/qa_agent_contract.md` generado con API, checks, callback, variables de entorno y dudas pendientes con backend
-- [ ] **Confirmar esquema de BD DEV** — nombre de tablas, campos `migration_id` / `renewal_blocked` con equipo backend (ver §10 del contrato)
-- [ ] **Implementar QA Agent** — container Python, endpoints `/validate` `/status` `/tasks` `/health`, checks SQL + HTTP, callback n8n con retry
-- [ ] **Configurar en n8n** — wiring: pipeline DEV completado → POST /validate → esperar callback → actualizar Jira
+- [x] **Timeout de tarea** — `BUILD_TIMEOUT_MINUTES` (default 20)
+- [x] **Limpieza de uploads** — `cleanup_old_uploads()` al arrancar, configurable con `RETENTION_DAYS`
+- [x] **Limpieza de tareas SQLite** — `cleanup_old_records()` al arrancar
+- [x] **Retry del callback** — 3 reintentos con backoff exponencial (2s, 4s, 8s)
 
 ---
 
