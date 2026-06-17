@@ -9,7 +9,6 @@ increments it, and produces a Flyway-ready Excel with sheets:
 from __future__ import annotations
 
 import io
-import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +19,6 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures"
-_LOV_FILE = _FIXTURES / "rules/plan-rules/lov_ams_rule.json"
 
 _RULEKIT_HEADERS = ["ID", "Code", "Name", "Description", "Version", "State"]
 
@@ -221,10 +219,12 @@ def _write_entity_sheet(
         ws.append([None, "NEW"] + row)
 
 
-def _write_lov(ws: Worksheet) -> None:
-    lov_data: list[list[Any]] = json.loads(_LOV_FILE.read_text(encoding="utf-8"))
-    for row in lov_data:
-        ws.append(row)
+def _write_lov(ws: Worksheet, last_migration: Path) -> None:
+    """Copy the LOV sheet from the last migration of this entity (source of truth)."""
+    wb_ref = openpyxl.load_workbook(last_migration, data_only=True)
+    for row in wb_ref["LOV"].iter_rows(values_only=True):
+        if any(c is not None for c in row):
+            ws.append(list(row))
 
 
 _COTIZADOR_FILE = _FIXTURES / "rules/business-reference"
@@ -276,6 +276,6 @@ def generate(
     _write_entity_sheet(ws_entity, raw_headers, raw_data)
 
     ws_lov = wb.create_sheet("LOV")
-    _write_lov(ws_lov)
+    _write_lov(ws_lov, last_migration)
 
     wb.save(output)
