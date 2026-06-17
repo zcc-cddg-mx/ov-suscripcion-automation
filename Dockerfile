@@ -1,21 +1,29 @@
-# ov-code-agent — Code Agent para automatización de migraciones OV
+# ov-code-agent — imagen Alpine sin Java/Gradle (~120-150 MB)
 #
-# Hereda de ov-agent-base que ya contiene:
-#   - Ubuntu 24.04 + Temurin 8 JDK + Gradle 6.8.3 + baked plugins
-#   - Python 3.12 venv con openpyxl + flask
-#   - Cache Maven (~243M) con todas las JARs del proyecto
+# Diseñada para entornos con restricciones de almacenamiento (SERVICIOSIAS).
+# Cubre todo el contrato del agente excepto la verificación de compilación:
+#   compile=true → descartado silenciosamente (java no disponible)
+#   compile=false → comportamiento normal
 #
-# Build (segundos — sin descarga de dependencias):
-#   docker build -t ov-code-agent:latest .
+# No requiere PAT de Gradle ni dependencias Maven.
+# El repo backend se clona en el entrypoint con GIT_PAT.
 #
-# Prerequisito: ov-agent-base:latest debe existir localmente o en el registry.
-#   Construir con: GRADLE_DEV_PASSWORD=<pat> ./build-base.sh
+# Build:
+#   PAT=<azure-pat> ./1-build-agent.sh
 
-FROM ov-agent-base:latest
+FROM python:3.12-alpine
+
+# Build-time deps para compilar cffi (requerido por msoffcrypto-tool)
+# Se instalan como virtual package para poder borrarlos después
+RUN apk add --no-cache \
+        git \
+        gcc \
+        musl-dev \
+        libffi-dev
 
 WORKDIR /app
 COPY requirements.txt .
-RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt flask==3.1.1
 
 COPY . .
 RUN chmod +x /app/docker-entrypoint.sh

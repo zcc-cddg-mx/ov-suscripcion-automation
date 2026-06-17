@@ -1,82 +1,37 @@
 # Docker — Arquitectura de contenedores del Code Agent
 
-## Dos variantes de imagen
+## Imagen: ov-code-agent (Alpine)
 
-| Imagen | Base | Tamaño | Compila Java | Caso de uso |
-|---|---|---|---|---|
-| `ov-code-agent:latest` | `ov-agent-base` (Ubuntu) | ~1.5 GB | Sí (`compile=true`) | Entorno completo con verificación de compilación |
-| `ov-code-agent-lite:latest` | `python:3.12-alpine` | ~120-150 MB | No (descartado) | SERVICIOSIAS — restricción de almacenamiento |
+```
+python:3.12-alpine
+  └── ov-code-agent:latest  (Dockerfile — build ~2 min)
+```
 
-Ambas variantes cubren el mismo contrato HTTP (`/run`, `/status`, `/tasks`, `/health`, callback n8n, SQLite). La diferencia es exclusivamente en el paso de compilación Java.
+Imagen única basada en Alpine. Sin JDK, sin Gradle, sin repo bakeado — ligera (~120-150 MB) y adecuada para entornos con restricciones de almacenamiento (SERVICIOSIAS).
 
-### Comportamiento de `compile` por variante
+Cubre el contrato completo del agente: `/run`, `/status`, `/tasks`, `/health`, callback n8n, SQLite.
 
-`compile` llega como campo del form en el POST `/run`. Ambas imágenes lo aceptan sin error:
+### Comportamiento de `compile`
 
-| `compile` recibido | Imagen full | Imagen lite |
-|---|---|---|
-| `false` | Omite build, push normal | Omite build, push normal |
-| `true` | Ejecuta `gradle compileJava` | Descartado silenciosamente — push normal |
+`compile` llega como campo del form en el POST `/run` y siempre se acepta sin error:
 
-La detección es automática: `build_check._JAVA_AVAILABLE` evalúa al arrancar si `java` y `gradle` están en PATH. En la imagen lite no lo están, por lo que `verify()` retorna sin hacer nada independientemente del flag recibido.
+| `compile` recibido | Resultado |
+|---|---|
+| `false` | Omite build, push normal |
+| `true` | Descartado silenciosamente — push normal (java no disponible) |
+
+La detección es automática: `build_check._JAVA_AVAILABLE` evalúa al arrancar si `java` y `gradle` están en PATH. En Alpine no lo están, por lo que `verify()` retorna sin hacer nada.
 
 ---
 
-## Variante full — cadena de imágenes
-
-```
-zurcontainerreg.azurecr.io/ov-ams-ubuntu-lite:12
-  └── ov-agent-base:latest        (Dockerfile.base — build ~10-15 min, una sola vez)
-        └── ov-code-agent:latest  (Dockerfile — build ~5 seg, con cada cambio de código)
-```
-
-**Por qué dos capas:**  
-`ov-agent-base` acumula todo lo que no cambia: JDK, Gradle, repo backend clonado, cache Maven (~243M de JARs). `ov-code-agent` solo copia el código Python.
-
----
-
-## ov-agent-base (Dockerfile.base)
-
-### Qué se hornea (build-time)
-
-| Capa | Contenido | Por qué va en base |
-|---|---|---|
-| OS | Ubuntu 24.04 vía `ams-ubuntu-lite:12` | Imagen corporativa estándar |
-| Runtime Java | Temurin 8 JDK (`JAVA_HOME=/usr/lib/jvm/temurin-8-jdk-amd64`) | Flyway migrations requieren Java 8 |
-| Build Java | Gradle 6.8.3 (de `gradle/gradle-6.8.3.zip`) | Versión fija del proyecto backend |
-| Plugins Gradle | `gradle/plugins/maven2` → `/opt/gradle-plugins/maven2` | Plugins no publicados en Azure Artifacts (gorylenko y otros) |
-| Init script | `gradle/init.d/baked-plugins.gradle` → `/root/.gradle/init.d/` | Aplica los plugins bakeados a cualquier build |
-| Python venv | `/opt/venv` con openpyxl, requests, msoffcrypto-tool, flask==3.1.1 | Evita re-instalar en cada rebuild del agente |
-| Repo backend | `/repos/ov-arizona-backend-ecuador` (clon completo + ramas main/develop/test/developer) | El agente escribe archivos aquí y hace push |
-| Cache Maven | `/repos/ov-arizona-backend-ecuador/.project/local-repo` (~243M, de `gradle/local-repo.tar.gz`) | Evita descargas desde Azure Artifacts en compilaciones normales |
-| Configuración Gradle | `setup-local-gradle.sh` inyecta bloques `local-repo` en `build.gradle` y `dependencies.gradle` | Los bloques Maven apuntan al local-repo bakeado |
-
-### Cómo se construye
-
-```bash
-PAT=<azure-pat> ./1-build-base.sh
-```
-
-El script:
-1. Extrae `gradle/local-repo.tar.gz` → `gradle/local-repo/` si no existe
-2. Corre `docker build --build-arg GIT_PAT="${PAT}" -f Dockerfile.base -t ov-agent-base:latest .`
-3. Si `REGISTRY` está definido, hace tag y push al registry remoto
-
-El `GIT_PAT` llega como `ARG` (build-time) y se usa solo para el `git clone`. No persiste como `ENV` — no queda en capas de la imagen.
-
-**Credenciales en la imagen bakeada:** el `.git/config` del repo clonado contiene la URL con el PAT incrustado. Esto es aceptable en un entorno controlado (imagen privada en registry corporativo), pero conviene rotar el PAT periódicamente y reconstruir la base.
-
----
-
-## ov-code-agent (Dockerfile)
-
-### Qué se agrega sobre la base
+## Dockerfile
 
 ```dockerfile
-FROM ov-agent-base:latest
+FROM python:3.12-alpine
+RUN apk add --no-cache git gcc musl-dev libffi-dev
 WORKDIR /app
 COPY requirements.txt .
-RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt flask==3.1.1
 COPY . .
 RUN chmod +x /app/docker-entrypoint.sh
 EXPOSE 5000
@@ -84,40 +39,11 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["python", "app.py"]
 ```
 
-Solo se copia el código Python. El `pip install` re-ejecuta sobre el venv ya existente en la base (idempotente y rápido porque las dependencias ya están ahí).
-
-### Build normal (tras cambios de código)
-
-```bash
-docker build -t ov-code-agent:latest .
-```
-
-No necesita PAT ni argumentos especiales.
+`gcc`, `musl-dev` y `libffi-dev` son necesarios en build-time para compilar `cffi` (dependencia de `msoffcrypto-tool`). No quedan activos en runtime.
 
 ---
 
-## ov-code-agent-lite (Dockerfile.alpine)
-
-### Qué contiene
-
-```dockerfile
-FROM python:3.12-alpine
-RUN apk add --no-cache git gcc musl-dev libffi-dev
-# pip install openpyxl requests msoffcrypto-tool flask
-ENTRYPOINT ["/app/docker-entrypoint-lite.sh"]
-```
-
-`gcc`, `musl-dev` y `libffi-dev` son necesarios para compilar `cffi` (dependencia de `msoffcrypto-tool`). Sin JDK, sin Gradle, sin repo bakeado — el repo se descarga en runtime.
-
-### Cómo se construye
-
-```bash
-PAT=<azure-pat> ./build-lite.sh
-```
-
-No requiere `--build-arg` de Gradle. El PAT solo se necesita al levantar el contenedor (para clonar el repo en el primer arranque).
-
-### docker-entrypoint-lite.sh — arranque
+## docker-entrypoint.sh — secuencia de arranque
 
 ```
 [1] Validar vars requeridas
@@ -144,7 +70,9 @@ No requiere `--build-arg` de Gradle. El PAT solo se necesita al levantar el cont
 
 El primer arranque tarda lo que dure el clone (~1-2 min según red). Los reinicios son rápidos — solo un `git pull`.
 
-### Variables de entorno (lite)
+---
+
+## Variables de entorno
 
 | Variable | Requerida | Default | Uso |
 |---|---|---|---|
@@ -158,215 +86,90 @@ El primer arranque tarda lo que dure el clone (~1-2 min según red). Los reinici
 | `RETENTION_DAYS` | no | `90` | Días antes de purgar uploads e historial |
 | `BUSINESS_EXCEL_PASSWORD` | no | — | Contraseña del cotizador cifrado (command=rules) |
 
-No requiere `GRADLE_USERNAME`, `GRADLE_DEV_PASSWORD` ni variantes — sin Gradle, no hay feeds de Azure Artifacts.
-
-### Flujo completo (lite)
-
-```
-1. Preparar .env.local con PAT y AZURE_USERNAME
-
-2. Construir imagen (~2 min, incluye pip install):
-   PAT=<pat> ./build-lite.sh
-
-3. Levantar contenedor:
-   docker run -d \
-     --name ov-code-agent-lite \
-     -p 5000:5000 \
-     -e GIT_USERNAME=<usuario> \
-     -e GIT_PAT=<pat> \
-     -v ov-agent-data:/data \
-     -v ov-repo-lite:/repos \
-     ov-code-agent-lite:latest
-   # Primer arranque clona el repo (~1-2 min)
-   # Reinicios hacen git pull (~segundos)
-```
-
-**Volumen `/repos`:** montar el directorio del repo como volumen externo evita re-clonar en cada recreación del contenedor. Si el volumen se destruye, el siguiente arranque clona de nuevo automáticamente.
-
----
-
-## docker-entrypoint.sh — arranque del contenedor (variante full)
-
-El entrypoint genera configuración en tiempo de ejecución a partir de variables de entorno, antes de lanzar Flask.
-
-### Secuencia de arranque
-
-```
-[1] Validar vars requeridas
-      GRADLE_USERNAME, GRADLE_DEV_PASSWORD, GIT_USERNAME, GIT_PAT
-
-[2] Generar /app/config.json
-      {"repo": "/repos/ov-arizona-backend-ecuador"}
-      (usado por el agente Python para ubicar el repo backend)
-
-[3] Generar ~/.gradle/gradle.properties
-      Credenciales Azure Artifacts (dev/test/prod feeds)
-      JVM args, workers, env=dev, customerOverlay=ecuador
-
-[4] Configurar git credentials (PAT-based HTTPS)
-      git config --global credential.helper store
-      Escribe ~/.git-credentials con las URLs de Azure Repos
-      git config user.email, user.name
-      safe.directory para el repo bakeado
-
-[5] Actualizar ramas del repo bakeado
-      git fetch origin
-      fetch main / develop / test / developer
-      git checkout developer
-      Reaplica setup-local-gradle.sh (idempotente)
-
-[6] Arrancar Flask
-      exec python app.py
-```
-
-Si el repo no existe en `REPO_PATH`, emite WARNING y continúa (permite correr en modo solo-generación).
-
----
-
-## Variables de entorno
-
-| Variable | Requerida | Default | Uso |
-|---|---|---|---|
-| `GRADLE_USERNAME` | sí | — | Usuario Azure DevOps para git y Gradle |
-| `GRADLE_DEV_PASSWORD` | sí | — | PAT Azure Artifacts (feed dev) |
-| `GIT_USERNAME` | sí | — | Nombre de usuario para commits git |
-| `GIT_PAT` | sí | — | PAT Azure Repos (Code Read+Write) |
-| `REPO_PATH` | no | `/repos/ov-arizona-backend-ecuador` | Path al repo backend bakeado |
-| `PORT` | no | `5000` | Puerto HTTP de Flask |
-| `GRADLE_TEST_PASSWORD` | no | `$GRADLE_DEV_PASSWORD` | PAT feed test |
-| `GRADLE_PROD_PASSWORD` | no | `$GRADLE_DEV_PASSWORD` | PAT feed prod |
-| `GRADLE_WORKERS_MAX` | no | `nproc` | Paralelismo Gradle |
-| `N8N_CALLBACK_URL` | no | (ninguno) | URL del webhook n8n para callback al terminar una tarea |
-| `TASKS_DB` | no | `/data/tasks.db` | SQLite — historial de tareas |
-| `UPLOADS_DIR` | no | `/data/uploads` | Directorio temporal para archivos Excel recibidos |
-| `BUILD_TIMEOUT_MINUTES` | no | `20` | Timeout para `gradle compileJava`; `0` = sin límite |
-| `RETENTION_DAYS` | no | `90` | Días antes de purgar uploads y registros históricos |
-| `BUSINESS_EXCEL_PASSWORD` | no | — | Contraseña del cotizador cifrado (command=rules) |
-
 ---
 
 ## Persistencia en runtime
 
 ```
 Docker volume: ov-agent-data:/data
-  /data/tasks.db        ← SQLite: historial de tareas (queued/running/done/error/rejected)
-  /data/uploads/        ← Archivos Excel recibidos (limpiados según RETENTION_DAYS)
+  /data/tasks.db     ← SQLite: historial de tareas (queued/running/done/error/rejected)
+  /data/uploads/     ← Archivos Excel recibidos (limpiados según RETENTION_DAYS)
+
+Docker volume: ov-repo:/repos
+  /repos/ov-arizona-backend-ecuador/   ← repo backend clonado en primer arranque
 ```
 
-El volumen persiste entre reinicios del contenedor. Si se destruye el volumen se pierde el historial de tareas pero no hay impacto en migraciones ya pusheadas al repo.
+Montar `/repos` como volumen externo evita re-clonar en cada recreación del contenedor. Si el volumen se destruye, el siguiente arranque clona de nuevo automáticamente.
 
 ---
 
 ## Scripts operativos
 
-Los scripts viven en la raíz del proyecto. `docker/full/` y `docker/lite/` son copias de referencia — los scripts activos son los de la raíz.
+| Script | Qué hace |
+|---|---|
+| `1-build-agent.sh` | `docker build Dockerfile` → `ov-code-agent:latest`. Opcional: push a registry si `REGISTRY` está definido. |
+| `2-start-agent.sh` | `docker run -d` con `GIT_PAT`, volúmenes `/data` y `/repos`. Espera hasta que `/health` responde. |
+| `3-test-agent.sh` | 8 casos de prueba HTTP: health, validación 400, sin commit, con commit, con compile, concurrencia, historial, callback n8n. |
 
-| Script (raíz) | Variante | Qué hace |
-|---|---|---|
-| `1-build-base.sh` | Full | Extrae local-repo.tar.gz + `docker build Dockerfile.base`. Opcional: push a registry. |
-| `2-start-agent.sh` | Full | `docker run -d` con env vars y volumen. Espera hasta que `/health` responde. |
-| `3-test-agent.sh` | Ambas | 8 casos de prueba HTTP: health, validación 400, sin commit, con commit, con compile, concurrencia, historial, callback. |
-| `build-lite.sh` | Lite | `docker build Dockerfile.alpine`. Sin args de Gradle. Opcional: push a registry. |
-| `start-lite.sh` | Lite | `docker run -d` con `GIT_PAT`, volúmenes `/data` y `/repos`. Espera hasta que `/health` responde. |
-
-### Estructura de backup
+### Backup de referencia
 
 ```
 docker/
-  full/   ← copia de los archivos de la variante full
-    Dockerfile
-    Dockerfile.base
-    docker-entrypoint.sh
-    1-build-base.sh
-    2-start-agent.sh
-    3-test-agent.sh
-  lite/   ← copia de los archivos de la variante lite
-    Dockerfile.alpine
-    docker-entrypoint-lite.sh
-    build-lite.sh
-    start-lite.sh
+  full/   ← archivos de la variante Ubuntu+Java (histórico)
+  lite/   ← copia de los archivos activos actuales (Alpine)
 ```
 
-Los archivos activos (raíz del proyecto) son la fuente de verdad. Los de `docker/` son referencia estática — útiles para comparar versiones o restaurar un script sin buscar en git log.
+Los archivos activos en la raíz son la fuente de verdad. Los de `docker/` son referencia estática.
 
 ---
 
-## Flujo completo primera vez
+## Flujo primera vez
 
 ```
 1. Preparar .env.local con PAT y AZURE_USERNAME
 
-2. Construir imagen base (una sola vez, ~10-15 min):
-   PAT=<pat> ./1-build-base.sh
+2. Construir imagen (~2 min):
+   PAT=<pat> ./1-build-agent.sh
 
-3. Construir imagen agente (~5 seg):
-   docker build -t ov-code-agent:latest .
-
-4. Levantar contenedor:
+3. Levantar contenedor:
    PAT=<pat> ./2-start-agent.sh
-   # Espera hasta que /health devuelva 200
+   # Primer arranque clona el repo (~1-2 min)
+   # /health responde cuando Flask está listo
 
-5. Probar endpoints:
+4. Probar endpoints:
    ./3-test-agent.sh
-
-6. Tras cambios de código, solo paso 3 + 4
 ```
-
----
 
 ## Flujo en actualizaciones de código
 
 ```
-git pull  (o editar código local)
-docker build -t ov-code-agent:latest .
+git pull
+PAT=<pat> ./1-build-agent.sh
 docker stop ov-code-agent && docker rm ov-code-agent
 PAT=<pat> ./2-start-agent.sh
+# El repo ya existe en el volumen — reinicio rápido (git pull)
 ```
 
-No es necesario reconstruir la base a menos que cambien: JDK, Gradle, plugins, dependencias Maven, o la URL/rama del repo backend.
+## Cuándo reconstruir la imagen
 
----
-
-## Cuándo reconstruir ov-agent-base
-
-| Evento | Reconstruir base |
+| Evento | Reconstruir |
 |---|---|
-| Cambio en código Python (`src/`, `app.py`, `main.py`) | No — solo agente |
-| Nueva dependencia Python en `requirements.txt` | No — solo agente (ya instaladas en venv base) |
-| Actualización de plugins Gradle (`gradle/plugins/`) | **Sí** |
-| Nueva versión de Gradle | **Sí** |
-| Nuevas dependencias Maven no en local-repo | **Sí** — actualizar `gradle/local-repo.tar.gz` |
-| Rotación del PAT de Azure (gitcreds bakeadas) | **Sí** |
-| Cambio de rama base del repo backend | **Sí** |
+| Cambio en código Python (`src/`, `app.py`, `main.py`) | **Sí** |
+| Nueva dependencia Python en `requirements.txt` | **Sí** |
+| Cambio de rama base del repo backend | No — el entrypoint actualiza en cada arranque |
 
 ---
 
 ## Observaciones y gaps conocidos
 
-### 1. PAT bakeado en el repo clonado
+### 1. Primer arranque lento
 
-El `.git/config` dentro del repo bakeado tiene la URL con el PAT de clonación. Si el PAT expira o se revoca, el `git fetch origin` en el entrypoint fallará en el siguiente arranque. Solución: el entrypoint reconfigura las credenciales con `~/.git-credentials` (el PAT de runtime), lo que sobrescribe las del clone. En la práctica el flujo es robusto, pero conviene documentarlo al rotar PATs.
+El clone inicial del repo puede tardar 1-2 minutos según la red. Durante ese tiempo `/health` no responde todavía. `2-start-agent.sh` espera con polling hasta que responde.
 
 ### 2. Rama sucia al reiniciar
 
-Si un proceso anterior dejó el repo en estado dirty (merge conflict, archivos sin commit de una tarea interrumpida), el `git checkout developer` en el entrypoint puede fallar. El entrypoint no hace `git reset --hard` ni `git clean -fd`. Las tareas individuales de `placer.py` crean ramas feature propias, por lo que este escenario solo ocurre si el contenedor es detenido a mitad de una operación git.
+Si el contenedor fue detenido a mitad de una operación git, el `git checkout developer` puede fallar por archivos sin commit. Las tareas del agente crean ramas feature propias (nunca trabajan directamente en `developer`), por lo que este escenario es improbable. Si ocurre, borrar el volumen `/repos` fuerza un clone limpio en el siguiente arranque.
 
-### 3. Un solo REPO_PATH por contenedor
+### 3. compile=true silencioso
 
-`customerOverlay=ecuador` está hardcodeado en `gradle.properties`. No hay soporte multi-tenant en el mismo contenedor. Si en el futuro se soporta otro país/overlay, se necesitaría o una instancia separada o parametrizar el overlay vía env var.
-
-### 4. local-repo como snapshot
-
-El `local-repo` bakeado es un snapshot en el tiempo. Si el proyecto backend agrega nuevas dependencias Maven que no están en el snapshot, el build cae a Azure Artifacts (fallback funcional, pero más lento). Actualizar el snapshot requiere reconstruir la base.
-
-### 5. compile=true — tiempo de respuesta (variante full)
-
-Una tarea con `compile=true` corre `gradle :ams-rule:flyway:compileJava` (o ams-policy). El primer compile en un contenedor recién levantado puede tomar varios minutos aunque el local-repo esté bakeado (Gradle daemon frío, configuración inicial). `BUILD_TIMEOUT_MINUTES=20` es suficiente. Tareas posteriores en el mismo contenedor son más rápidas (daemon caliente).
-
-### 6. Primer arranque lento en la variante lite
-
-El clone inicial del repo backend puede tardar 1-2 minutos según la red. Durante ese tiempo `/health` no responde todavía. Para mitigarlo, montar `/repos` como volumen externo persistente: si el volumen ya contiene el repo de una ejecución anterior, el entrypoint solo ejecuta `git pull` y el arranque es casi inmediato.
-
-### 7. compile=true silencioso en lite
-
-Si n8n envía `compile=true` a la instancia lite, la compilación se descarta sin error ni advertencia en la respuesta HTTP — la tarea se completa normalmente y `build_status` queda como `null` en el callback (no `"success"`). n8n debe interpretar `build_status=null` como "no aplicable" en este contexto, no como fallo.
+Si n8n envía `compile=true`, la compilación se descarta sin error HTTP — la tarea completa normalmente y `build_status` queda como `null` en el callback (no `"success"`). n8n debe interpretar `build_status=null` como "no aplica", no como fallo.
