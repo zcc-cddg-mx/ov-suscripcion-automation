@@ -1,11 +1,9 @@
-# Git
-.git
-.gitignore
+# .dockerignore para variante full (Ubuntu + Java + Gradle)
+# Build context: raíz del proyecto (docker build -f docker/full/Dockerfile .)
 
 # Credentials and local config — NEVER in image
 .env.local
 .env*
-config.json
 
 # Claude / IDE / editor
 .claude/
@@ -13,10 +11,6 @@ config.json
 .idea/
 *.swp
 *.swo
-
-# Gradle artifacts — not needed in Alpine image
-gradle/
-docker/
 
 # Docs and architecture
 architecture/
@@ -29,6 +23,8 @@ TODO.md
 1-build-agent.sh
 2-start-agent.sh
 3-test-agent.sh
+build-lite.sh
+start-lite.sh
 Dockerfile
 Dockerfile.*
 
@@ -44,6 +40,7 @@ data/
 logs/
 site/
 tests/migrations/
+docker/
 
 # Python cache
 __pycache__/
@@ -61,3 +58,6 @@ build/
 
 # OS
 .DS_Store
+
+# gradle/local-repo/ se extrae desde local-repo.tar.gz en 1-build-base.sh
+# y se copia explícitamente en Dockerfile.base — no excluir gradle/
