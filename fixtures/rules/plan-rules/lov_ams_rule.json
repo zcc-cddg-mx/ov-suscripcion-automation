@@ -1,127 +1,262 @@
 [
   [
     "TrueFalse",
-    "True",
+    "TRUE True",
     "TRUE"
   ],
   [
     "TrueFalse",
-    "False",
+    "FALSE False",
     "FALSE"
   ],
   [
     "SelectorType",
-    "Claim event",
+    "ClaimEvent Claim event",
     "ClaimEvent"
   ],
   [
     "SelectorType",
-    "Product",
+    "Product Product",
     "Product"
   ],
   [
     "SelectorType",
-    "Product variant",
+    "ProductVariant Product variant",
     "ProductVariant"
   ],
   [
     "SelectorType",
-    "None",
+    "None None",
     "None"
   ],
   [
     "SelectorType",
-    "Party type",
+    "PartyType Party type",
     "PartyType"
   ],
   [
     "SelectorType",
-    "Claim type",
+    "ClaimType Claim type",
     "ClaimType"
   ],
   [
     "SelectorType",
-    "Other",
+    "Other Other",
     "Other"
   ],
   [
-    "VehiclePlan",
-    "All",
-    "ALL"
+    "VehicleType",
+    "ESPECIAL ESPECIAL",
+    "ESPECIAL"
   ],
   [
-    "VehiclePlan",
-    "Senior",
-    "SENIOR"
+    "VehicleType",
+    "PALA PALA",
+    "PALA"
   ],
   [
-    "VehiclePlan",
-    "Medium",
-    "MEDIUM"
+    "VehicleType",
+    "JEEP JEEP",
+    "JEEP"
   ],
   [
-    "VehiclePlan",
-    "MOTOS",
-    "MOTOS"
+    "VehicleType",
+    "AUTOMOVIL AUTOMOVIL",
+    "AUTOMOVIL"
   ],
   [
-    "VehiclePlan",
-    "Top",
-    "TOP"
+    "VehicleType",
+    "MOTO MOTO",
+    "MOTO"
   ],
   [
-    "VehiclePlan",
-    "Suv",
-    "SUV"
+    "VehicleType",
+    "STATION WAGON STATION WAGON",
+    "STATION WAGON"
   ],
   [
-    "VehiclePlan",
-    "Contados",
-    "CONTADOS"
+    "VehicleType",
+    "CAMIONETA DOBLE CABINA CAMIONETA DOBLE CABINA",
+    "CAMIONETA DOBLE CABINA"
   ],
   [
-    "VehiclePlan",
-    "Seguro Planeta",
-    "SEGURO_PLANETA"
+    "VehicleType",
+    "COUPE COUPE",
+    "COUPE"
   ],
   [
-    "VehiclePlan",
-    "Pro",
-    "PRO"
+    "VehicleType",
+    "CAMIONETA CAMIONETA",
+    "CAMIONETA"
   ],
   [
-    "VehiclePlan",
-    "Produbanco",
-    "PRODUBANCO"
+    "VehicleType",
+    "MOTOCICLETA MOTOCICLETA",
+    "MOTOCICLETA"
   ],
   [
-    "VehiclePlan",
-    "Beginner",
-    "BEGINNER"
+    "VehicleType",
+    "SEDAN SEDAN",
+    "SEDAN"
+  ],
+  [
+    "VehicleType",
+    "MOTOCICLETAS MOTOCICLETAS",
+    "MOTOCICLETAS"
+  ],
+  [
+    "VehicleType",
+    "LIMOUSINE",
+    "LIMOUSINE"
+  ],
+  [
+    "VehicleType",
+    "LIVIANO",
+    "LIVIANO"
+  ],
+  [
+    "VehicleType",
+    "MINI VAN",
+    "MINI VAN"
+  ],
+  [
+    "TransitZone",
+    "PASTAZA PASTAZA",
+    "PASTAZA"
+  ],
+  [
+    "TransitZone",
+    "BOLIVAR BOLIVAR",
+    "BOLIVAR"
+  ],
+  [
+    "TransitZone",
+    "AZUAY AZUAY",
+    "AZUAY"
+  ],
+  [
+    "TransitZone",
+    "SANTO DOMINGO DE LOS TSACHILAS SANTO DOMINGO DE LOS TSACHILAS",
+    "SANTO DOMINGO DE LOS TSACHILAS"
+  ],
+  [
+    "TransitZone",
+    "GUAYAS GUAYAS",
+    "GUAYAS"
+  ],
+  [
+    "TransitZone",
+    "IMBABURA IMBABURA",
+    "IMBABURA"
+  ],
+  [
+    "TransitZone",
+    "EL ORO EL ORO",
+    "EL ORO"
+  ],
+  [
+    "TransitZone",
+    "MANABI MANABI",
+    "MANABI"
+  ],
+  [
+    "TransitZone",
+    "CAÑAR CAÑAR",
+    "CAÑAR"
+  ],
+  [
+    "TransitZone",
+    "CHIMBORAZO CHIMBORAZO",
+    "CHIMBORAZO"
+  ],
+  [
+    "TransitZone",
+    "SANTA ELENA SANTA ELENA",
+    "SANTA ELENA"
+  ],
+  [
+    "TransitZone",
+    "ESMERALDAS ESMERALDAS",
+    "ESMERALDAS"
+  ],
+  [
+    "TransitZone",
+    "COTOPAXI COTOPAXI",
+    "COTOPAXI"
+  ],
+  [
+    "TransitZone",
+    "LOJA LOJA",
+    "LOJA"
+  ],
+  [
+    "TransitZone",
+    "PICHINCHA PICHINCHA",
+    "PICHINCHA"
+  ],
+  [
+    "TransitZone",
+    "SUCUMBIOS SUCUMBIOS",
+    "SUCUMBIOS"
+  ],
+  [
+    "TransitZone",
+    "LOS RIOS LOS RIOS",
+    "LOS RIOS"
+  ],
+  [
+    "TransitZone",
+    "TUNGURAHUA TUNGURAHUA",
+    "TUNGURAHUA"
+  ],
+  [
+    "TransitZone",
+    "CARCHI CARCHI",
+    "CARCHI"
+  ],
+  [
+    "TransitZone",
+    "ORELLANA ORELLANA",
+    "ORELLANA"
+  ],
+  [
+    "TransitZone",
+    "RESTO RESTO",
+    "RESTO"
+  ],
+  [
+    "YesNo",
+    "NO No",
+    "NO"
+  ],
+  [
+    "YesNo",
+    "YES Yes",
+    "YES"
   ],
   [
     "ComponentState",
-    "Draft",
+    "DRAFT Draft",
     "DRAFT"
   ],
   [
     "ComponentState",
-    "Archival",
+    "ARCHIVAL Archival",
     "ARCHIVAL"
   ],
   [
     "ComponentState",
-    "Final",
+    "FINAL Final",
     "FINAL"
   ],
   [
     "RatingList__Type",
-    "Local",
+    "LocalRatingList Local",
     "LocalRatingList"
   ],
   [
     "RatingList__Type",
-    "Global",
+    "GlobalRatingList Global",
     "GlobalRatingList"
   ]
 ]

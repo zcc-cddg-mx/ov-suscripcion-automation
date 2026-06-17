@@ -33,7 +33,7 @@ _ENTITIES = {
         "reference_xlsx": _FIXTURES / "rules/drivers-age/VHDriversAge_reference.xlsx",
         "password": os.environ.get("BUSINESS_EXCEL_PASSWORD"),
         "expected_data_rows": 65,
-        "expected_lov_rows": 96,
+        "expected_lov_rows": 52,
         "expected_headers": [
             "ID", "Rating list", "Drivers age from", "Drivers age to",
             "DAPA_FREC", "DAPA_CM", "DATO_FREC", "DATO_CM",
