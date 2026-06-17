@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Code Agent — Callback payload (error)",
+  "description": "POST enviado a N8N_CALLBACK_URL cuando la migración termina con error (validación, generación, build, git, u otro).",
+  "type": "object",
+  "required": [
+    "ticket",
+    "status",
+    "task_id",
+    "command",
+    "error",
+    "completed_at"
+  ],
+  "properties": {
+    "ticket": {
+      "type": "string",
+      "description": "ID del ticket de origen tal como llegó en el request."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["error"],
+      "description": "Siempre 'error' en este contrato."
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Identificador interno de la tarea (8 caracteres hex)."
+    },
+    "command": {
+      "type": "string",
+      "enum": ["ren-data", "rules"],
+      "description": "Tipo de migración que falló."
+    },
+    "branch": {
+      "type": ["string", "null"],
+      "description": "Feature branch si fue creada antes del error; null si el fallo ocurrió antes del git push."
+    },
+    "aux_branch": {
+      "type": ["string", "null"],
+      "description": "Branch auxiliar si fue creada antes del error; null en caso contrario."
+    },
+    "commit_id": {
+      "type": ["string", "null"],
+      "description": "SHA del commit si fue generado antes del error; null en caso contrario."
+    },
+    "repo": {
+      "type": ["string", "null"],
+      "description": "Nombre del repositorio destino; null si el error ocurrió antes de determinar el repo."
+    },
+    "build_status": {
+      "type": ["string", "null"],
+      "enum": ["success", "failed", null],
+      "description": "'failed' si javac encontró errores de compilación; null si el error ocurrió antes o después del build step."
+    },
+    "summary": {
+      "type": ["string", "null"],
+      "description": "Presente solo si hubo progreso parcial antes del error."
+    },
+    "error": {
+      "type": "string",
+      "description": "Mensaje de error. Puede ser: mensaje de excepción Python, salida de javac, error de git, o descripción del fallo de validación."
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp ISO 8601 UTC del momento en que se envió el callback."
+    }
+  },
+  "additionalProperties": false,
+  "examples_notes": {
+    "validation_error": "ValueError lanzado por _load_raw / _load_cotizador_drivers_age",
+    "build_error": "BuildCheckError — salida de gradle :ams-rule:flyway:compileJava",
+    "git_error": "subprocess.CalledProcessError del push / checkout",
+    "unexpected_error": "Cualquier excepción no controlada en el worker thread"
+  }
+}

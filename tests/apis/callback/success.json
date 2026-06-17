@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Code Agent — Callback payload (success)",
+  "description": "POST enviado a N8N_CALLBACK_URL cuando la migración termina correctamente.",
+  "type": "object",
+  "required": [
+    "ticket",
+    "status",
+    "task_id",
+    "command",
+    "branch",
+    "aux_branch",
+    "commit_id",
+    "repo",
+    "build_status",
+    "summary",
+    "completed_at"
+  ],
+  "properties": {
+    "ticket": {
+      "type": "string",
+      "description": "ID del ticket de origen tal como llegó en el request (e.g. RITM-1234, ZNRX-67108)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success"],
+      "description": "Siempre 'success' en este contrato."
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Identificador interno de la tarea (8 caracteres hex, asignado al recibir el request)."
+    },
+    "command": {
+      "type": "string",
+      "enum": ["ren-data", "rules"],
+      "description": "Tipo de migración ejecutada."
+    },
+    "branch": {
+      "type": "string",
+      "description": "Nombre de la feature branch creada y pusheada a origin. Formato: feature/{ticket}_{suffix}."
+    },
+    "aux_branch": {
+      "type": "string",
+      "description": "Nombre de la branch auxiliar creada desde origin/developer con los mismos 2 archivos. Formato: {branch}_developer_auxiliar."
+    },
+    "commit_id": {
+      "type": "string",
+      "description": "SHA completo del commit en la feature branch."
+    },
+    "repo": {
+      "type": "string",
+      "description": "Nombre del repositorio destino (solo el basename, sin path ni host)."
+    },
+    "build_status": {
+      "type": "string",
+      "enum": ["success"],
+      "description": "Resultado de la verificación javac antes del push. 'success' indica que el .java compila sin errores."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Mensaje legible del resultado. Formato: 'Migration {base_name} generated and pushed to {branch}'."
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp ISO 8601 UTC del momento en que se envió el callback."
+    }
+  },
+  "additionalProperties": false
+}
