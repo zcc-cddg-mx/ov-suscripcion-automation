@@ -23,11 +23,15 @@ from src.logger import log
 
 _DEFAULT_TIMEOUT_MINUTES = int(os.environ.get("BUILD_TIMEOUT_MINUTES", "20"))
 
-# True only when both java and gradle are on PATH — absent in the alpine lite image
-_JAVA_AVAILABLE = (
-    subprocess.run(["java", "-version"], capture_output=True).returncode == 0
-    and subprocess.run(["gradle", "--version"], capture_output=True).returncode == 0
-)
+# True only when both java and gradle are on PATH — absent in the alpine image
+def _check_java_available() -> bool:
+    try:
+        ok = subprocess.run(["java", "-version"], capture_output=True).returncode == 0
+        return ok and subprocess.run(["gradle", "--version"], capture_output=True).returncode == 0
+    except FileNotFoundError:
+        return False
+
+_JAVA_AVAILABLE = _check_java_available()
 
 # Maps Code Agent module names to Gradle subproject paths
 _MODULE_GRADLE_PATH = {

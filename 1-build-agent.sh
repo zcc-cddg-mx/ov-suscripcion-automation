@@ -20,6 +20,7 @@ TAG="ov-code-agent:latest"
 echo "[build-agent] building ${TAG}..."
 
 docker build \
+    --network host \
     -f Dockerfile \
     -t "${TAG}" \
     "${SCRIPT_DIR}"
