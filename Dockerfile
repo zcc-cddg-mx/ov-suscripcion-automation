@@ -20,13 +20,21 @@ RUN apk add --no-cache \
         gcc \
         musl-dev \
         curl \
-        libffi-dev
+        libffi-dev \
+        ca-certificates
 
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt flask==3.1.1
 
 COPY . .
+
+# Instalar certificados corporativos (TLS hacia n8n y Azure DevOps)
+RUN if ls /app/certs/*.crt /app/certs/*.pem 2>/dev/null | head -1 > /dev/null 2>&1; then \
+        cp /app/certs/*.crt /app/certs/*.pem /usr/local/share/ca-certificates/ 2>/dev/null || true; \
+        update-ca-certificates; \
+    fi
+
 RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 5000

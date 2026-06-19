@@ -57,6 +57,13 @@ from flask import Flask, jsonify, request
 
 _UPLOADS_DIR = Path(os.environ.get("UPLOADS_DIR", "/data/uploads"))
 _N8N_CALLBACK_URL = os.environ.get("N8N_CALLBACK_URL", "")  # e.g. https://n8n.host/webhook/code-agent-done
+# CALLBACK_VERIFY_SSL: "false" desactiva verificación TLS; path a un bundle .pem lo usa como CA
+_raw_verify = os.environ.get("CALLBACK_VERIFY_SSL", "true").strip()
+_N8N_CALLBACK_VERIFY: bool | str = (
+    False if _raw_verify.lower() == "false"
+    else True if _raw_verify.lower() == "true"
+    else _raw_verify  # path a bundle CA personalizado
+)
 
 from main import run_payload
 from src.build_check import BuildCheckError
@@ -115,7 +122,7 @@ def _notify_n8n(task: dict) -> None:
 
     for attempt in range(1, _N8N_CALLBACK_RETRIES + 1):
         try:
-            resp = http_requests.post(_N8N_CALLBACK_URL, json=body, timeout=10)
+            resp = http_requests.post(_N8N_CALLBACK_URL, json=body, timeout=10, verify=_N8N_CALLBACK_VERIFY)
             log("N8N", f"callback → {_N8N_CALLBACK_URL} status={resp.status_code} (attempt {attempt})")
             return
         except Exception as exc:
