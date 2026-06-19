@@ -13,8 +13,10 @@
 
 FROM python:3.12-alpine
 
+ENV PYTHONUNBUFFERED=1
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
 # Build-time deps para compilar cffi (requerido por msoffcrypto-tool)
-# Se instalan como virtual package para poder borrarlos después
 RUN apk add --no-cache \
         git \
         gcc \
@@ -23,18 +25,17 @@ RUN apk add --no-cache \
         libffi-dev \
         ca-certificates
 
+# Certificados corporativos — TLS hacia n8n y Azure DevOps
+COPY certs/localCA.crt /usr/local/share/ca-certificates/localCA.crt
+COPY certs/zurichseguros-rootca-until-2031_03_20.crt /usr/local/share/ca-certificates/zurichseguros-rootca.crt
+COPY certs/cacert-workflow-uat.pem /usr/local/share/ca-certificates/cacert-workflow-uat.crt
+RUN update-ca-certificates
+
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt flask==3.1.1
 
 COPY . .
-
-# Instalar certificados corporativos (TLS hacia n8n y Azure DevOps)
-RUN if ls /app/certs/*.crt /app/certs/*.pem 2>/dev/null | head -1 > /dev/null 2>&1; then \
-        cp /app/certs/*.crt /app/certs/*.pem /usr/local/share/ca-certificates/ 2>/dev/null || true; \
-        update-ca-certificates; \
-    fi
-
 RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 5000
