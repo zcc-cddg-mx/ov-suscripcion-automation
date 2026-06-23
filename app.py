@@ -43,6 +43,7 @@ Mount /data as a Docker volume to keep history across container restarts.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import threading
@@ -119,6 +120,7 @@ def _notify_n8n(task: dict) -> None:
         "completed_at": _now_iso(),
     }
     body = {k: v for k, v in body.items() if v is not None}
+    log("N8N", f"callback payload → {json.dumps(body, ensure_ascii=False)}")
 
     for attempt in range(1, _N8N_CALLBACK_RETRIES + 1):
         try:
