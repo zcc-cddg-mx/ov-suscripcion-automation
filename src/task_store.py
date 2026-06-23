@@ -86,8 +86,11 @@ def upsert(task: dict, now_iso: str) -> None:
 
     cols = ", ".join(row.keys())
     placeholders = ", ".join(f":{k}" for k in row.keys())
+    # Only update columns that are explicitly set — skip None values so partial
+    # upserts (e.g. status=running) don't overwrite fields set in earlier upserts
     updates = ", ".join(
-        f"{k} = :{k}" for k in row.keys() if k not in ("task_id", "created_at")
+        f"{k} = :{k}" for k in row.keys()
+        if k not in ("task_id", "created_at") and row[k] is not None
     )
     sql = (
         f"INSERT INTO tasks ({cols}) VALUES ({placeholders}) "
